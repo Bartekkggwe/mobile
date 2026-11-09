@@ -484,4 +484,8 @@ const TextTheme kCupertinoDefaultTextTheme = TextTheme(
   bodyLarge: _kCupertinoDefaultTextStyle,
   bodyMedium: _kCupertinoDefaultTextStyle,
   bodySmall: _kCupertinoDefaultTextStyle,
-  labelLa
+  
+  labelLarge: _kCupertinoDefaultTextStyle,
+  labelMedium: _kCupertinoDefaultTextStyle,
+  labelSmall: _kCupertinoDefaultTextStyle,
+);
