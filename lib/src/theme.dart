@@ -110,44 +110,64 @@ ThemeData _makeDefaultTheme(
   };
   final hasSystemColors = systemScheme != null && systemColors;
 
+  // Lichess Bartek Edition: minimalistyczny deep violet / granat.
+  // Ciemne tła i chłodny, intensywny fiolet. Bez pstrokacizny.
   final neutralScheme = ColorScheme.fromSeed(
     seedColor: boardTheme.colors.darkSquare,
     brightness: brightness,
     dynamicSchemeVariant: DynamicSchemeVariant.neutral,
   );
-
-  // Bartek Edition: ultra-intensywny neonowy fiolet.
-  // W dark/AMOLED najlepiej widac neon; nie uzywaj kolorow systemowych.
   final defaultScheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFFD000FF),
+    seedColor: const Color(0xFF5F00FF),
     brightness: brightness,
-  ).copyWith(
-    primary: const Color(0xFFD000FF),
-    onPrimary: const Color(0xFF17001F),
-    primaryContainer: const Color(0xFF490058),
-    onPrimaryContainer: const Color(0xFFF8D6FF),
-    secondary: const Color(0xFFB000FF),
-    onSecondary: const Color(0xFFFFFFFF),
   );
 
-  // makes a theme with neutral surfaces and default colors
-  final boardScheme = defaultScheme.copyWith(
-    surface: neutralScheme.surface,
-    onSurface: neutralScheme.onSurface,
-    surfaceDim: neutralScheme.surfaceDim,
-    surfaceBright: neutralScheme.surfaceBright,
-    surfaceContainer: neutralScheme.surfaceContainer,
-    surfaceContainerLowest: neutralScheme.surfaceContainerLowest,
-    surfaceContainerLow: neutralScheme.surfaceContainerLow,
-    surfaceContainerHigh: neutralScheme.surfaceContainerHigh,
-    surfaceContainerHighest: neutralScheme.surfaceContainerHighest,
-    onSurfaceVariant: neutralScheme.onSurfaceVariant,
-    inverseSurface: neutralScheme.inverseSurface,
-    onInverseSurface: neutralScheme.onInverseSurface,
-    shadow: neutralScheme.shadow,
-    scrim: neutralScheme.scrim,
-    surfaceTint: neutralScheme.surfaceTint,
-  );
+  final isDark = brightness == Brightness.dark;
+  final boardScheme = isDark
+      ? defaultScheme.copyWith(
+          primary: const Color(0xFF5F00FF),
+          onPrimary: const Color(0xFFFFFFFF),
+          primaryContainer: const Color(0xFF211142),
+          onPrimaryContainer: const Color(0xFFEDE2FF),
+          secondary: const Color(0xFF7A2BFF),
+          onSecondary: const Color(0xFFFFFFFF),
+          secondaryContainer: const Color(0xFF1A1035),
+          onSecondaryContainer: const Color(0xFFE9DFFF),
+          surface: const Color(0xFF080610),
+          onSurface: const Color(0xFFF3EEFF),
+          surfaceDim: const Color(0xFF05030A),
+          surfaceBright: const Color(0xFF231B36),
+          surfaceContainerLowest: const Color(0xFF05030A),
+          surfaceContainerLow: const Color(0xFF0C0918),
+          surfaceContainer: const Color(0xFF120D21),
+          surfaceContainerHigh: const Color(0xFF191229),
+          surfaceContainerHighest: const Color(0xFF221936),
+          onSurfaceVariant: const Color(0xFFC4B8DA),
+          inverseSurface: const Color(0xFFF3EEFF),
+          onInverseSurface: const Color(0xFF130D24),
+          outline: const Color(0xFF66538C),
+          outlineVariant: const Color(0xFF35294D),
+          shadow: const Color(0xFF000000),
+          scrim: const Color(0xFF000000),
+          surfaceTint: const Color(0xFF5F00FF),
+        )
+      : defaultScheme.copyWith(
+          surface: neutralScheme.surface,
+          onSurface: neutralScheme.onSurface,
+          surfaceDim: neutralScheme.surfaceDim,
+          surfaceBright: neutralScheme.surfaceBright,
+          surfaceContainer: neutralScheme.surfaceContainer,
+          surfaceContainerLowest: neutralScheme.surfaceContainerLowest,
+          surfaceContainerLow: neutralScheme.surfaceContainerLow,
+          surfaceContainerHigh: neutralScheme.surfaceContainerHigh,
+          surfaceContainerHighest: neutralScheme.surfaceContainerHighest,
+          onSurfaceVariant: neutralScheme.onSurfaceVariant,
+          inverseSurface: neutralScheme.inverseSurface,
+          onInverseSurface: neutralScheme.onInverseSurface,
+          shadow: neutralScheme.shadow,
+          scrim: neutralScheme.scrim,
+          surfaceTint: neutralScheme.surfaceTint,
+        );
 
   final textTheme = isIOS ? kCupertinoDefaultTextTheme : null;
 
@@ -464,7 +484,4 @@ const TextTheme kCupertinoDefaultTextTheme = TextTheme(
   bodyLarge: _kCupertinoDefaultTextStyle,
   bodyMedium: _kCupertinoDefaultTextStyle,
   bodySmall: _kCupertinoDefaultTextStyle,
-  labelLarge: _kCupertinoDefaultTextStyle,
-  labelMedium: _kCupertinoDefaultTextStyle,
-  labelSmall: _kCupertinoDefaultTextStyle,
-);
+  labelLa
