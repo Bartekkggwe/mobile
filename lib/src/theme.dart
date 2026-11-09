@@ -115,10 +115,21 @@ ThemeData _makeDefaultTheme(
     brightness: brightness,
     dynamicSchemeVariant: DynamicSchemeVariant.neutral,
   );
+
+  // Bartek Edition: ultra-intensywny neonowy fiolet.
+  // W dark/AMOLED najlepiej widac neon; nie uzywaj kolorow systemowych.
   final defaultScheme = ColorScheme.fromSeed(
-    seedColor: boardTheme.colors.darkSquare,
+    seedColor: const Color(0xFFD000FF),
     brightness: brightness,
+  ).copyWith(
+    primary: const Color(0xFFD000FF),
+    onPrimary: const Color(0xFF17001F),
+    primaryContainer: const Color(0xFF490058),
+    onPrimaryContainer: const Color(0xFFF8D6FF),
+    secondary: const Color(0xFFB000FF),
+    onSecondary: const Color(0xFFFFFFFF),
   );
+
   // makes a theme with neutral surfaces and default colors
   final boardScheme = defaultScheme.copyWith(
     surface: neutralScheme.surface,
