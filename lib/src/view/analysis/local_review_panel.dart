@@ -17,7 +17,7 @@ import 'package:lichess_mobile/src/model/engine/practice_comment.dart';
 import 'package:lichess_mobile/src/model/engine/work.dart';
 import 'package:lichess_mobile/src/view/offline_computer/offline_computer_game_screen.dart';
 import 'package:material_ui/material_ui.dart';
-
+hide step;
 /// Nie używać do podpowiedzi podczas aktywnej partii online.
 /// Panel jest uruchamiany wyłącznie z analizy, jeśli engine jest dozwolony.
 enum _Grade {
