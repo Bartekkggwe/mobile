@@ -9,8 +9,6 @@ import 'package:lichess_mobile/src/widgets/pgn.dart';
 import 'package:lichess_mobile/src/widgets/variations_bar.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Oceny pochodzą z oznaczeń PGN, nie z automatycznego
-/// rozpoznawania genialnych ruchów przez silnik.
 enum _MoveGrade {
   brilliant('Genialny', '!!', Color(0xFF21C7D9)),
   good('Dobry', '!', Color(0xFF51C98B)),
@@ -48,7 +46,6 @@ _MoveGrade? _gradeFromNags(Iterable<int>? nags) {
 
 typedef _RatedMove = ({
   UciPath path,
-  ViewBranch node,
   _MoveGrade grade,
 });
 
@@ -61,11 +58,7 @@ List<_RatedMove> _ratedMainlineMoves(ViewRoot root) {
     final grade = _gradeFromNags(node.nags);
 
     if (grade != null) {
-      rated.add((
-        path: path,
-        node: node,
-        grade: grade,
-      ));
+      rated.add((path: path, grade: grade));
     }
   }
 
@@ -101,18 +94,13 @@ class const AnalysisTreeView(final AnalysisOptions options)
     final prefs = ref.watch(analysisPreferencesProvider);
 
     final enableServerAnalysis =
-        !options.isLichessGameAnalysis ||
-        prefs.enableServerAnalysis;
+        !options.isLichessGameAnalysis || prefs.enableServerAnalysis;
 
     final currentNode =
-        analysisState.root
-            .branchesOn(analysisState.currentPath)
-            .lastOrNull ??
+        analysisState.root.branchesOn(analysisState.currentPath).lastOrNull ??
         analysisState.root;
 
-    final showGrades =
-        enableServerAnalysis && prefs.showAnnotations;
-
+    final showGrades = enableServerAnalysis && prefs.showAnnotations;
     final ratedMoves = showGrades
         ? _ratedMainlineMoves(analysisState.root)
         : <_RatedMove>[];
@@ -121,21 +109,19 @@ class const AnalysisTreeView(final AnalysisOptions options)
       currentNode: currentNode,
       currentPath: analysisState.currentPath,
       showAnnotations: showGrades,
-      onJump: (path) =>
-          ref.read(ctrlProvider.notifier).userJump(path),
-      movesBuilder: (context, bottomPadding) =>
-          SingleChildScrollView(
+      onJump: (path) => ref.read(ctrlProvider.notifier).userJump(path),
+      movesBuilder: (context, bottomPadding) => SingleChildScrollView(
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: Column(
           children: [
-            _MoveReviewHeader(
-              currentNode: currentNode,
-              currentPath: analysisState.currentPath,
-              ratedMoves: ratedMoves,
-              annotationsEnabled: showGrades,
-              onJump: (path) =>
-                  ref.read(ctrlProvider.notifier).userJump(path),
-            ),
+            if (ratedMoves.isNotEmpty)
+              _MoveReviewHeader(
+                currentNode: currentNode,
+                currentPath: analysisState.currentPath,
+                ratedMoves: ratedMoves,
+                onJump: (path) =>
+                    ref.read(ctrlProvider.notifier).userJump(path),
+              ),
             DebouncedPgnTreeView(
               root: analysisState.root,
               currentPath: analysisState.currentPath,
@@ -144,20 +130,15 @@ class const AnalysisTreeView(final AnalysisOptions options)
               notifier: ref.read(ctrlProvider.notifier),
               showTopDivider: false,
               shouldShowComputerAnalysis: enableServerAnalysis,
-              shouldShowComments:
-                  enableServerAnalysis && prefs.showPgnComments,
+              shouldShowComments: enableServerAnalysis && prefs.showPgnComments,
               shouldShowAnnotations: showGrades,
               premovePaths: analysisState.forecast?.lines,
-              displayMode: prefs.inlineNotation
-                  ? .inlineNotation
-                  : .twoColumn,
+              displayMode: prefs.inlineNotation ? .inlineNotation : .twoColumn,
             ),
             if (analysisState.archivedGame != null)
               Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: GameResult(
-                  game: analysisState.archivedGame!,
-                ),
+                child: GameResult(game: analysisState.archivedGame!),
               ),
           ],
         ),
@@ -170,213 +151,103 @@ class const _MoveReviewHeader({
   required final ViewNode currentNode,
   required final UciPath currentPath,
   required final List<_RatedMove> ratedMoves,
-  required final bool annotationsEnabled,
   required final void Function(UciPath) onJump,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = ColorScheme.of(context);
+    final selectedGrade = _gradeFromNags(currentNode.nags);
+    final mistakes = ratedMoves.where((move) => move.grade.isError).length;
 
-    final selectedGrade = annotationsEnabled
-        ? _gradeFromNags(currentNode.nags)
-        : null;
-
-    final mistakes = ratedMoves
-        .where((move) => move.grade.isError)
-        .length;
-
-    final nextRated =
-        _nextRatedMove(ratedMoves, currentPath);
-
+    final nextRated = _nextRatedMove(ratedMoves, currentPath);
     final nextMistake = _nextRatedMove(
       ratedMoves,
       currentPath,
       errorsOnly: true,
     );
 
-    final counts = <_MoveGrade, int>{
-      for (final grade in _MoveGrade.values)
-        grade: ratedMoves
-            .where((move) => move.grade == grade)
-            .length,
-    };
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colors.primary.withValues(alpha: 0.3),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+      child: Card(
+        color: colors.surfaceContainerLow,
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          leading: Icon(
+            Icons.analytics_outlined,
+            color: colors.primary,
           ),
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          title: const Text(
+            'ANALIZA RUCHÓW',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          subtitle: Text(
+            '${ratedMoves.length} ocen • $mistakes niedokładności i błędów',
+            style: const TextStyle(fontSize: 11),
+          ),
+          childrenPadding: const EdgeInsets.all(12),
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.analytics_outlined,
-                  color: colors.primary,
+            if (selectedGrade != null)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  Icons.stars_rounded,
+                  color: selectedGrade.color,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'ANALIZA RUCHÓW',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      letterSpacing: 1.0,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${ratedMoves.length} ocen',
+                title: Text(
+                  selectedGrade.label,
                   style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
+                    color: selectedGrade.color,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                subtitle: const Text('Ocena wybranego ruchu'),
+              ),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final grade in _MoveGrade.values)
+                  if (ratedMoves.any((move) => move.grade == grade))
+                    _GradeCounter(
+                      grade: grade,
+                      count: ratedMoves
+                          .where((move) => move.grade == grade)
+                          .length,
+                    ),
               ],
             ),
             const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  if (selectedGrade != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selectedGrade.color
-                            .withValues(alpha: 0.16),
-                        borderRadius:
-                            BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        selectedGrade.symbol,
-                        style: TextStyle(
-                          color: selectedGrade.color,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 19,
-                        ),
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.star_outline,
-                      color: colors.onSurfaceVariant,
-                      size: 26,
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currentNode.sanMove?.san ??
-                              'Pozycja początkowa',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 17,
-                          ),
-                        ),
-                        Text(
-                          selectedGrade?.label ??
-                              'Brak zapisanej oceny tego ruchu',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: selectedGrade?.color ??
-                                colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (ratedMoves.isNotEmpty) ...[
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: [
-                  for (final grade in _MoveGrade.values)
-                    if (counts[grade]! > 0)
-                      _GradeCounter(
-                        grade: grade,
-                        count: counts[grade]!,
-                      ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Ocenione ruchy: ${ratedMoves.length}  •  Niedokładności i błędy: $mistakes',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.onSurfaceVariant,
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: nextRated == null
+                      ? null
+                      : () => onJump(nextRated),
+                  icon: const Icon(Icons.skip_next, size: 18),
+                  label: const Text('Następna ocena'),
                 ),
-              ),
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
+                if (mistakes > 0)
                   OutlinedButton.icon(
-                    onPressed: nextRated == null
+                    onPressed: nextMistake == null
                         ? null
-                        : () => onJump(nextRated),
+                        : () => onJump(nextMistake),
                     icon: const Icon(
-                      Icons.skip_next,
+                      Icons.report_problem_outlined,
                       size: 18,
                     ),
-                    label: const Text(
-                      'Następna ocena',
-                    ),
+                    label: const Text('Następny błąd'),
                   ),
-                  if (mistakes > 0)
-                    OutlinedButton.icon(
-                      onPressed: nextMistake == null
-                          ? null
-                          : () => onJump(nextMistake),
-                      icon: const Icon(
-                        Icons.report_problem_outlined,
-                        size: 18,
-                      ),
-                      label: const Text(
-                        'Następny błąd',
-                      ),
-                    ),
-                ],
-              ),
-            ] else
-              Text(
-                annotationsEnabled
-                    ? 'Nie ma jeszcze ocen ruchów. Otwórz partię z adnotacjami PGN albo uruchom analizę serwerową, aby je zobaczyć.'
-                    : 'Włącz adnotacje i analizę serwerową w ustawieniach, aby zobaczyć kategorie ruchów.',
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
+              ],
+            ),
             const SizedBox(height: 8),
             Text(
-              'Kategorie pochodzą z oznaczeń PGN (!, !!, ?, ??). '
-              'To nie jest automatyczne ocenianie genialnych ruchów przez Stockfish.',
+              'Oceny pochodzą z adnotacji PGN. '
+              'Nie są automatycznie obliczane przez Stockfish.',
               style: TextStyle(
                 color: colors.onSurfaceVariant,
                 fontSize: 10,
@@ -408,7 +279,7 @@ class const _GradeCounter({
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        '${grade.symbol} ${grade.label}  $count',
+        '${grade.symbol} ${grade.label}: $count',
         style: TextStyle(
           color: grade.color,
           fontSize: 11,
