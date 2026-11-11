@@ -1,3 +1,4 @@
+
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,7 @@ import 'package:lichess_mobile/src/view/clock/clock_tool_screen.dart';
 import 'package:lichess_mobile/src/view/explorer/opening_explorer_screen.dart';
 import 'package:lichess_mobile/src/view/message/contacts_screen.dart';
 import 'package:lichess_mobile/src/view/more/import_pgn_screen.dart';
+import 'package:lichess_mobile/src/view/more/opening_library_screen.dart';
 import 'package:lichess_mobile/src/view/relation/friend_screen.dart';
 import 'package:lichess_mobile/src/view/settings/settings_screen.dart';
 import 'package:lichess_mobile/src/view/team/team_updates_screen.dart';
@@ -93,6 +95,15 @@ class const _Body() extends ConsumerWidget {
                   AnalysisScreen.buildRoute(
                     const AnalysisOptions.standalone(variant: Variant.standard),
                   ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                trailing: const Icon(Icons.chevron_right),
+                title: const Text('Encyklopedia debiutów'),
+                subtitle: const Text('Debiuty i ich warianty • offline'),
+                onTap: () => Navigator.of(context).pushHidingTabBar(
+                  OpeningLibraryScreen.buildRoute(),
                 ),
               ),
               ListTile(
