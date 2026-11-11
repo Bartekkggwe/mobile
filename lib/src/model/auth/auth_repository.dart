@@ -19,7 +19,8 @@ const _kOAuthCustomSchemeCallbackHost = 'login-callback';
 /// Custom schemes are more universally supported across Android browsers/OEMs than
 /// HTTPS App Link redirects, so they are used on every platform and host.
 const kOAuthRedirectUri = '$kLichessCustomUriSchemeName://$_kOAuthCustomSchemeCallbackHost';
-const oauthScopes = ['preference:read'];
+const oauthScopes = ['preference:read', 'board:play'];
+
 
 
 /// Thrown when the user dismisses the OAuth session before completing it.
