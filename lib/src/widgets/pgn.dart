@@ -147,6 +147,9 @@ class const DebouncedPgnTreeView({
   /// Whether to show NAG annotations like '!' and '??'.
   final bool shouldShowAnnotations = true,
 
+  /// Offline review annotations.
+  final Map<UciPath, ({String symbol, Color color})> localReviewMarks = const {},
+
   /// Whether to show comments associated with the moves.
   final bool shouldShowComments = true,
 
@@ -247,6 +250,7 @@ class _DebouncedPgnTreeViewState() extends ConsumerState<DebouncedPgnTreeView> {
       params: (
         shouldShowComputerAnalysis: widget.shouldShowComputerAnalysis,
         shouldShowAnnotations: widget.shouldShowAnnotations,
+        localReviewMarks: widget.localReviewMarks,
         shouldShowComments: widget.shouldShowComments,
         currentMoveKey: currentMoveKey,
         pathToCurrentMove: pathToCurrentMove,
@@ -282,6 +286,8 @@ typedef _PgnTreeViewParams = ({
 
   /// Whether to show NAG annotations like '!' and '??'.
   bool shouldShowAnnotations,
+
+  Map<UciPath, ({String symbol, Color color})> localReviewMarks,
 
   /// Whether to show comments associated with the moves.
   bool shouldShowComments,
@@ -466,6 +472,7 @@ class _PgnTreeViewState() extends State<_PgnTreeView> {
           oldWidget.params.shouldShowComputerAnalysis != widget.params.shouldShowComputerAnalysis ||
           oldWidget.params.shouldShowComments != widget.params.shouldShowComments ||
           oldWidget.params.shouldShowAnnotations != widget.params.shouldShowAnnotations ||
+          oldWidget.params.localReviewMarks != widget.params.localReviewMarks ||
           oldWidget.params.displayMode != widget.params.displayMode,
     );
   }
@@ -1175,13 +1182,15 @@ class const InlineMove({
     final san = branch.sanMove.san.startsWith('P')
         ? branch.sanMove.san.substring(1)
         : branch.sanMove.san;
+    final reviewMark = params.localReviewMarks[path];
     final moveWithNag =
         san +
-        (branch.nags != null && params.shouldShowAnnotations
+        (reviewMark == null && branch.nags != null && params.shouldShowAnnotations
             ? moveAnnotationChar(branch.nags!)
             : '');
 
-    final nag = params.shouldShowAnnotations ? branch.nags?.firstOrNull : null;
+    final nag = reviewMark == null && params.shouldShowAnnotations
+        ? branch.nags?.firstOrNull : null;
     final ply = branch.position.ply;
 
     final eval = params.shouldShowComputerAnalysis && canShowEval
@@ -1237,6 +1246,14 @@ class const InlineMove({
                           : _textColor(context, isCurrentMove ? 1 : 0.9, nag: nag),
                     ),
                   ),
+                  if (reviewMark != null)
+                    TextSpan(
+                      text: ' ${reviewMark.symbol}',
+                      style: moveTextStyle.copyWith(
+                        color: reviewMark.color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                 ],
               ),
             ),
