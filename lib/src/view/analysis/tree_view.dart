@@ -14,6 +14,7 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
     final ctrlProvider = analysisControllerProvider(options);
     final analysisState = ref.watch(ctrlProvider).requireValue;
     final prefs = ref.watch(analysisPreferencesProvider);
+    final localMarks = ref.watch(localReviewMarksProvider(options.contextId.value));
 
     final enableServerAnalysis =
         !options.isLichessGameAnalysis || prefs.enableServerAnalysis;
@@ -37,6 +38,7 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
                 options: options,
                 root: analysisState.root,
                 variant: analysisState.variant,
+                currentPath: analysisState.currentPath,
                 onJump: (path) => ref.read(ctrlProvider.notifier).userJump(path),
               ),
             DebouncedPgnTreeView(
@@ -49,6 +51,7 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
               shouldShowComputerAnalysis: enableServerAnalysis,
               shouldShowComments: enableServerAnalysis && prefs.showPgnComments,
               shouldShowAnnotations: enableServerAnalysis && prefs.showAnnotations,
+              localReviewMarks: analysisState.isComputerAnalysisAllowed ? localMarks : const {},
               premovePaths: analysisState.forecast?.lines,
               displayMode: prefs.inlineNotation ? .inlineNotation : .twoColumn,
             ),
