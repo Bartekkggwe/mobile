@@ -518,4 +518,202 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                   itemCount: _moves.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 5),
                   itemBuilder: (context, i) {
-                    final move
+                    
+                    final move = _moves[i];
+                    final isSelected = move.path == widget.currentPath;
+                    return InkWell(
+                      onTap: () => widget.onJump(move.path),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 63),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: move.grade.color.withValues(
+                            alpha: isSelected ? 0.26 : 0.09,
+                          ),
+                          border: Border.all(
+                            color: isSelected
+                                ? move.grade.color
+                                : move.grade.color.withValues(alpha: 0.2),
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              move.grade.symbol,
+                              style: TextStyle(
+                                color: move.grade.color,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              move.moveText,
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                )),
+                const SizedBox(height: 12),
+                if (failures.isNotEmpty) ...[
+                  Text(
+                    'RUCHY DO POPRAWY (${failures.length})',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  for (final move in failures)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onTap: () => widget.onJump(move.path),
+                      leading: CircleAvatar(
+                        radius: 16,
+                        backgroundColor:
+                            move.grade.color.withValues(alpha: 0.14),
+                        child: Text(
+                          move.grade.symbol,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: move.grade.color,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        '${move.moveText} • ${move.grade.label}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      subtitle: Text(
+                        'Najlepszy ruch: ${move.bestMove ?? 'brak danych'}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.fitness_center, size: 18),
+                        tooltip: 'Przećwicz tę pozycję',
+                        onPressed: () => _train(move),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 10),
+                Text(
+                  'Oceny są przybliżone i zależą od głębokości '
+                  'Stockfisha. „Genialny*” to heurystyka '
+                  'poświęcenia lub oznaczenie !! z PGN, '
+                  'a nie oficjalny algorytm Chess.com.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewGraphPainter extends material.CustomPainter {
+  const _ReviewGraphPainter({
+    required this.values,
+    required this.selected,
+    required this.lineColor,
+    required this.foreground,
+  });
+
+  final List<double> values;
+  final int selected;
+  final Color lineColor;
+  final Color foreground;
+
+  @override
+  void paint(material.Canvas canvas, material.Size size) {
+    if (values.isEmpty) return;
+
+    final middle = size.height / 2;
+
+    canvas.drawLine(
+      material.Offset(0, middle),
+      material.Offset(size.width, middle),
+      material.Paint()
+        ..color = foreground.withValues(alpha: 0.35)
+        ..strokeWidth = 1,
+    );
+
+    final points = <material.Offset>[];
+
+    for (var i = 0; i < values.length; i++) {
+      final x = values.length == 1
+          ? size.width / 2
+          : i * size.width / (values.length - 1);
+
+      final y = middle -
+          values[i].clamp(-1.0, 1.0) * (middle - 8);
+
+      points.add(material.Offset(x, y));
+    }
+
+    if (points.length > 1) {
+      final path = material.Path()
+        ..moveTo(points[0].dx, points[0].dy);
+
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+
+      canvas.drawPath(
+        path,
+        material.Paint()
+          ..color = lineColor
+          ..strokeWidth = 2.5
+          ..strokeCap = material.StrokeCap.round
+          ..style = material.PaintingStyle.stroke,
+      );
+    }
+
+    if (selected >= 0 && selected < points.length) {
+      final point = points[selected];
+
+      canvas.drawLine(
+        material.Offset(point.dx, 0),
+        material.Offset(point.dx, size.height),
+        material.Paint()
+          ..color = foreground.withValues(alpha: 0.4)
+          ..strokeWidth = 1,
+      );
+
+      canvas.drawCircle(
+        point,
+        5,
+        material.Paint()..color = lineColor,
+      );
+
+      canvas.drawCircle(
+        point,
+        2,
+        material.Paint()..color = Colors.white,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReviewGraphPainter old) {
+    return old.values != values ||
+        old.selected != selected ||
+        old.lineColor != lineColor ||
+        old.foreground != foreground;
+  }
+}
+
