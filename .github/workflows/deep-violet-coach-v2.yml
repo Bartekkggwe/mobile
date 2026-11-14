@@ -1,0 +1,415 @@
+name: Deep Violet - Coach i przeglad partii v2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  coach-and-apk:
+    name: Dodaj trenerke, strzalki i zbuduj Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Pobierz obecny projekt
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Zaktualizuj przeglad partii Deep Violet
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+
+
+          def change(path, old, new, *, count=1):
+              path = Path(path)
+              src = path.read_text(encoding='utf-8')
+              if src.count(old) == count:
+                  src = src.replace(old, new, count)
+              elif new in src:
+                  print(f'Already updated: {path} / {old[:45]!r}')
+                  return
+              else:
+                  raise SystemExit(f'STOP: Unexpected source for {path}: {old[:100]!r} (occurrences {src.count(old)})')
+              path.write_text(src, encoding='utf-8')
+              print('Patched:', path)
+
+          panel = 'lib/src/view/analysis/local_review_panel.dart'
+          change(panel,
+          '''  void clear() => state = {};
+          }
+
+          enum _ReviewMode {''',
+          '''  void clear() => state = {};
+          }
+
+          /// Additional information for the separate Deep Violet game review screen.
+          /// The board and the coach share the same move path, so they stay in sync.
+          typedef LocalReviewDetail = ({
+            String title,
+            String explanation,
+            String score,
+            String? bestMove,
+            Move? continuation,
+            Color color,
+            String symbol,
+          });
+
+          final localReviewDetailsProvider = NotifierProvider.autoDispose.family<
+              LocalReviewDetailsController, Map<UciPath, LocalReviewDetail>, String>(
+            LocalReviewDetailsController.new,
+            name: 'LocalReviewDetailsProvider',
+          );
+
+          class LocalReviewDetailsController(final String contextId)
+              extends Notifier<Map<UciPath, LocalReviewDetail>> {
+            @override
+            Map<UciPath, LocalReviewDetail> build() => {};
+
+            void replace(Map<UciPath, LocalReviewDetail> values) => state = Map.unmodifiable(values);
+            void clear() => state = {};
+          }
+
+          /// Compact on-board coaching strip, visible without scrolling the move list.
+          class LocalReviewCoach extends ConsumerWidget {
+            const LocalReviewCoach({
+              required this.options,
+              required this.root,
+              required this.currentPath,
+              required this.onJump,
+              super.key,
+            });
+
+            final AnalysisOptions options;
+            final ViewRoot root;
+            final UciPath currentPath;
+            final void Function(UciPath) onJump;
+
+            @override
+            Widget build(BuildContext context, WidgetRef ref) {
+              final details = ref.watch(localReviewDetailsProvider(options.contextId.value));
+              final paths = <UciPath>[UciPath.empty];
+              var path = UciPath.empty;
+              for (final node in root.mainline) {
+                path = path + node.id;
+                paths.add(path);
+              }
+              final index = paths.indexOf(currentPath);
+              final detail = details[currentPath];
+              final canBack = index > 0;
+              final canNext = index >= 0 && index < paths.length - 1;
+              final accent = detail?.color ?? const Color(0xFFAE74FF);
+              final title = detail == null
+                  ? (index == 0 ? 'Gotowa na przegląd partii?' : 'Ruch ${index < 0 ? 'w wariancie' : '$index z ${paths.length - 1}'}')
+                  : '${detail.symbol} ${detail.title}';
+              final subtitle = detail?.explanation ??
+                  (details.isEmpty
+                      ? 'Uruchom ocenę Stockfisha pod planszą, żeby zobaczyć komentarze.'
+                      : 'Wybierz oceniony ruch, by zobaczyć wskazówkę.');
+
+              return Container(
+                height: 83,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF21162F),
+                  border: Border(bottom: BorderSide(color: accent.withValues(alpha: 0.38))),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.psychology_outlined, color: accent, size: 23),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: accent, fontSize: 13, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text(subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Color(0xFFE8DDF7), fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, color: Color(0xFFD9BAFF)),
+                      onPressed: canBack ? () => onJump(paths[index - 1]) : null,
+                      tooltip: 'Poprzedni ruch',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, color: Color(0xFFD9BAFF)),
+                      onPressed: canNext ? () => onJump(paths[index + 1]) : null,
+                      tooltip: 'Następny ruch',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
+
+          enum _ReviewMode {''')
+
+          change(panel,
+          '''        ref.read(localReviewMarksProvider(reviewId).notifier).clear();
+                });''',
+          '''        ref.read(localReviewMarksProvider(reviewId).notifier).clear();
+                  ref.read(localReviewDetailsProvider(reviewId).notifier).clear();
+                });''')
+
+          change(panel,
+          '''  Future<void> _start() async {
+              if (_running) return;''',
+          '''  String _explanation(_Grade grade, String? bestMove) {
+              final alternative = bestMove == null ? '' : ' Lepsza możliwość: $bestMove.';
+              return switch (grade) {
+                _Grade.brilliant => 'Ciekawe poświęcenie lub ruch oznaczony !! w PGN. Sprawdź wariant silnika.',
+                _Grade.best => 'Według Stockfisha to najlepszy ruch w przeanalizowanej pozycji.',
+                _Grade.excellent => 'Bardzo mocny ruch, bliski najlepszemu wariantowi.',
+                _Grade.good => 'Solidny ruch, który nie pogarsza istotnie szans.',
+                _Grade.inaccuracy => 'Można było zagrać precyzyjniej.$alternative',
+                _Grade.mistake => 'Ten ruch zauważalnie pogarsza pozycję.$alternative',
+                _Grade.blunder => 'Duża utrata szans. Cofnij ruch i spróbuj znaleźć lepszą kontynuację.$alternative',
+              };
+            }
+
+            Future<void> _start() async {
+              if (_running) return;''')
+
+          change(panel,
+          '''    ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).clear();
+              setState(() {''',
+          '''    ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).clear();
+              ref.read(localReviewDetailsProvider(widget.options.contextId.value).notifier).clear();
+              setState(() {''')
+
+          # Include a legal reply after the played move, not a best alternative from the previous board.
+          change(panel,
+          '''  String? bestMove,
+            String score,
+            Side side,''',
+          '''  String? bestMove,
+            Move? continuation,
+            String score,
+            Side side,''')
+          change(panel,
+          '''              bestMove: bestSan,
+                        score: after?.evalString ?? 'Mat',''',
+          '''              bestMove: bestSan,
+                        continuation: after?.bestMove,
+                        score: after?.evalString ?? 'Mat',''')
+
+          change(panel,
+          '''      ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).replace({
+                  for (final move in _moves) move.path: (symbol: move.grade.symbol, color: move.grade.color),
+                });''',
+          '''      ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).replace({
+                  for (final move in _moves) move.path: (symbol: move.grade.symbol, color: move.grade.color),
+                });
+                ref.read(localReviewDetailsProvider(widget.options.contextId.value).notifier).replace({
+                  for (final move in _moves)
+                    move.path: (
+                      title: '${move.moveText} • ${move.grade.label}',
+                      explanation: _explanation(move.grade, move.bestMove),
+                      score: move.score,
+                      bestMove: move.bestMove,
+                      continuation: move.continuation,
+                      color: move.grade.color,
+                      symbol: move.grade.symbol,
+                    ),
+                });''')
+
+          # Summary graph + counts are collapsible, leaving the selected move readable below the board.
+          change(panel,
+          '''              if (_moves.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'WYKRES PRZEWAGI',''',
+          '''              if (_moves.isNotEmpty) ...[
+                          ExpansionTile(
+                             tilePadding: EdgeInsets.zero,
+                             initiallyExpanded: false,
+                             title: const Text('Wykres i statystyki',
+                                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                             subtitle: Text('${_moves.length} przeanalizowanych ruchów',
+                                 style: const TextStyle(fontSize: 11)),
+                             children: [
+                               const SizedBox(height: 12),
+                               Text(
+                                 'WYKRES PRZEWAGI',''')
+          change(panel,
+          '''                const Divider(height: 24),
+                          const Text(
+                            'PRZEGLĄD RUCHÓW',''',
+          '''                  const SizedBox(height: 8),
+                          ],
+                          ),
+                          const Divider(height: 18),
+                          const Text(
+                            'PRZEGLĄD RUCHÓW',''')
+
+          # Fix a subtle bug: engine can return no eval after checkmate, but the next iteration
+          # doesn't falsely classify the initial position again.
+
+          layout='lib/src/view/analysis/analysis_layout.dart'
+          change(layout,
+          '''  final Widget? boardHeader,
+
+            /// A widget to show below the board.''',
+          '''  final Widget? boardHeader,
+
+            /// A compact coaching strip displayed before the board in review mode.
+            final Widget? boardTop,
+
+            /// A widget to show below the board.''')
+          change(layout,
+          '''                      children: [
+                                  ?engineLines,
+                                  if (pockets != null)''',
+          '''                      children: [
+                                  if (boardTop != null) boardTop!,
+                                  ?engineLines,
+                                  if (pockets != null)''')
+          change(layout,
+          '''              children: [
+                          ?engineLines,
+                          Padding(''',
+          '''              children: [
+                          if (boardTop != null) boardTop!,
+                          ?engineLines,
+                          Padding(''')
+
+          screen='lib/src/view/analysis/analysis_screen.dart'
+          change(screen,
+          '''import 'package:lichess_mobile/src/view/analysis/game_analysis_board.dart';''',
+          '''import 'package:lichess_mobile/src/view/analysis/game_analysis_board.dart';
+          import 'package:lichess_mobile/src/view/analysis/local_review_panel.dart';''')
+          change(screen,
+          '''        boardBuilder: (context, boardSize, borderRadius) =>
+                      GameAnalysisBoard(options: options, boardSize: boardSize, boardRadius: borderRadius),''',
+          '''        boardBuilder: (context, boardSize, borderRadius) => GameAnalysisBoard(
+                    options: options,
+                    boardSize: boardSize,
+                    boardRadius: borderRadius,
+                    showReviewHints: reviewMode,
+                  ),
+                  boardTop: reviewMode
+                      ? LocalReviewCoach(
+                          options: options,
+                          root: analysisState.root,
+                          currentPath: analysisState.currentPath,
+                          onJump: (path) => ref.read(ctrlProvider.notifier).userJump(path),
+                        )
+                      : null,''')
+
+          board='lib/src/view/analysis/game_analysis_board.dart'
+          change(board,
+          '''import 'package:lichess_mobile/src/view/analysis/analysis_board.dart';''',
+          '''import 'package:lichess_mobile/src/view/analysis/analysis_board.dart';
+          import 'package:lichess_mobile/src/view/analysis/local_review_panel.dart';''')
+          change(board,
+          '''  final bool shouldReplaceChildOnUserMove = false,
+          }) extends AnalysisBoard {''',
+          '''  final bool shouldReplaceChildOnUserMove = false,
+            final bool showReviewHints = false,
+          }) extends AnalysisBoard {''')
+          change(board,
+          '''    final pgnShapes = ISet(analysisState.pgnShapes.map((shape) => shape.chessground));
+              return pgnShapes;''',
+          '''    final detail = widget.showReviewHints
+                  ? ref.watch(localReviewDetailsProvider(widget.options.contextId.value))[
+                      analysisState.currentPath]
+                  : null;
+              final reply = detail?.continuation;
+              final pgnShapes = ISet(<Shape>[
+                ...analysisState.pgnShapes.map((shape) => shape.chessground),
+                // The arrow represents the best NEXT move in the displayed position.
+                if (reply is NormalMove && analysisState.currentPosition.isLegal(reply))
+                  Arrow(color: ShapeColor.green.color, orig: reply.from, dest: reply.to),
+              ]);
+              return pgnShapes;''')
+
+          print('Deep Violet Coach v2 patches complete.')
+          PYTHON
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter (wersja z pubspec)
+        uses: subosito/flutter-action@v2
+        with:
+          cache: true
+          flutter-version-file: pubspec.yaml
+
+      - name: Pobierz zaleznosci
+        run: flutter pub get
+
+      - name: Generuj Dart
+        run: dart run build_runner build
+
+      - name: Formatuj kod
+        run: |
+          dart format \
+            lib/src/view/analysis/local_review_panel.dart \
+            lib/src/view/analysis/analysis_layout.dart \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/game_analysis_board.dart
+
+      - name: Sprawdz kod Flutter
+        run: |
+          flutter analyze --no-pub --no-fatal-warnings --no-fatal-infos \
+            lib/src/view/analysis/local_review_panel.dart \
+            lib/src/view/analysis/analysis_layout.dart \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/game_analysis_board.dart
+
+      - name: Zbuduj Android APK
+        run: |
+          flutter build apk --debug \
+            --dart-define=LICHESS_HOST=lichess.org \
+            --dart-define=LICHESS_WS_HOST=socket.lichess.org
+
+      - name: Zapisz poprawki do main po udanym buildzie
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            lib/src/view/analysis/local_review_panel.dart \
+            lib/src/view/analysis/analysis_layout.dart \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/game_analysis_board.dart
+          if ! git diff --cached --quiet; then
+            git commit -m "Deep Violet: game review coach, arrows and compact summary"
+            git push origin HEAD:main
+          else
+            echo "Deep Violet v2: changes already applied"
+          fi
+
+      - name: Udostepnij APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Deep-Violet-Coach-v2-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
