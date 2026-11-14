@@ -1,0 +1,241 @@
+name: Deep Violet - Naprawa i osobna ocena partii
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-and-build:
+    name: Napraw interfejs i zbuduj APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Pobierz repozytorium
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Zmien trzy pliki, napraw Riverpod i dodaj ekran z gwiazdka
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(filename, changes):
+              path = Path(filename)
+              source = path.read_text(encoding='utf-8')
+              for number, (old, new) in enumerate(changes, 1):
+                  if old in source:
+                      if source.count(old) != 1:
+                          raise RuntimeError(f'{filename}: fragment {number} powtorzony')
+                      source = source.replace(old, new, 1)
+                  elif new in source:
+                      print(f'{filename}: zmiana {number} juz jest')
+                  else:
+                      raise RuntimeError(f'{filename}: nie znaleziono fragmentu {number}; niczego nie zapisuje')
+              path.write_text(source, encoding='utf-8')
+              print(f'Zaktualizowano {filename}')
+
+          a = 'lib/src/view/analysis/analysis_screen.dart'
+          patch(a, [
+              (
+                  '''class const AnalysisScreen({required final AnalysisOptions options, super.key})
+              extends StatelessWidget {
+            static Route<dynamic> buildRoute(AnalysisOptions options) {
+              return buildScreenRoute(screen: AnalysisScreen(options: options));
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return _AnalysisScreen(options: options);
+            }
+          }'''.replace('              extends', '    extends').replace('            ', '  '),
+                  '''class const AnalysisScreen({
+            required final AnalysisOptions options,
+            final bool reviewMode = false,
+            super.key,
+          }) extends StatelessWidget {
+            static Route<dynamic> buildRoute(AnalysisOptions options) =>
+                buildScreenRoute(screen: AnalysisScreen(options: options));
+
+            static Route<dynamic> buildReviewRoute(AnalysisOptions options) =>
+                buildScreenRoute(
+                  screen: AnalysisScreen(options: options, reviewMode: true),
+                );
+
+            @override
+            Widget build(BuildContext context) =>
+                _AnalysisScreen(options: options, reviewMode: reviewMode);
+          }''',
+              ),
+              (
+                  'class const _AnalysisScreen({required final AnalysisOptions options})',
+                  'class const _AnalysisScreen({required final AnalysisOptions options, required final bool reviewMode})',
+              ),
+              (
+                  'title: switch (value?.archivedGame) {',
+                  "title: widget.reviewMode\n              ? const Text('Ocena partii')\n              : switch (value?.archivedGame) {",
+              ),
+              (
+                  'AsyncData(:final value) => _TabbedBody(\n            options: widget.options,',
+                  'AsyncData(:final value) => _TabbedBody(\n            options: widget.options,\n            reviewMode: widget.reviewMode,',
+              ),
+              (
+                  'class const _TabbedBody({required final AnalysisOptions options, required final bool showMoveTimes})',
+                  'class const _TabbedBody({required final AnalysisOptions options, required final bool showMoveTimes, required final bool reviewMode})',
+              ),
+              (
+                  '''    tabs = [
+                AnalysisTab.explorer,
+                AnalysisTab.moves,
+                if (widget.options case ArchivedGame()) AnalysisTab.summary,
+                if (widget.showMoveTimes) AnalysisTab.moveTimes,
+                if (widget.options case ActiveCorrespondenceGame()) AnalysisTab.conditionalPremoves,
+              ];'''.replace('                ', '      '),
+                  '''    tabs = widget.reviewMode
+                ? [AnalysisTab.moves]
+                : [
+                    AnalysisTab.explorer,
+                    AnalysisTab.moves,
+                    if (widget.options case ArchivedGame()) AnalysisTab.summary,
+                    if (widget.showMoveTimes) AnalysisTab.moveTimes,
+                    if (widget.options case ActiveCorrespondenceGame())
+                      AnalysisTab.conditionalPremoves,
+                  ];''',
+              ),
+              (
+                  '    return _Body(\n      options: widget.options,',
+                  '    return _Body(\n      options: widget.options,\n      reviewMode: widget.reviewMode,',
+              ),
+              (
+                  'class const _Body({\n  required final AnalysisOptions options,',
+                  'class const _Body({\n  required final AnalysisOptions options,\n  required final bool reviewMode,',
+              ),
+              (
+                  '        bottomBar: _BottomBar(\n          options: options,',
+                  '        bottomBar: _BottomBar(\n          options: options,\n          reviewMode: reviewMode,',
+              ),
+              (
+                  '        children: [\n          ExplorerView(',
+                  '        children: [\n          if (!reviewMode) ...[\n          ExplorerView(',
+              ),
+              (
+                  '          if (options case ActiveCorrespondenceGame()) ConditionalPremoves(options),\n        ],',
+                  '          if (options case ActiveCorrespondenceGame()) ConditionalPremoves(options),\n          ],\n          if (reviewMode) AnalysisTreeView(options, showLocalReview: true),\n        ],',
+              ),
+              (
+                  'class const _BottomBar({\n  required final AnalysisOptions options,',
+                  'class const _BottomBar({\n  required final AnalysisOptions options,\n  required final bool reviewMode,',
+              ),
+              (
+                  '        if (analysisState.isComputerAnalysisAllowed)\n          EngineToggleButton(',
+                  '''        if (!reviewMode &&
+                analysisState.isComputerAnalysisAllowed &&
+                options is! ActiveCorrespondenceGame)
+              BottomBarButton(
+                key: const ValueKey('deep-violet-game-review'),
+                label: 'Ocena',
+                icon: Icons.star_rounded,
+                onTap: () => Navigator.of(context).push(
+                  AnalysisScreen.buildReviewRoute(options),
+                ),
+              ),
+            if (analysisState.isComputerAnalysisAllowed)
+              EngineToggleButton(''',
+              ),
+          ])
+
+          patch('lib/src/view/analysis/tree_view.dart', [
+              (
+                  'class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidget {',
+                  '''class AnalysisTreeView extends ConsumerWidget {
+            const AnalysisTreeView(this.options, {this.showLocalReview = false, super.key});
+
+            final AnalysisOptions options;
+            final bool showLocalReview;''',
+              ),
+              (
+                  'if (analysisState.isComputerAnalysisAllowed &&\n                options is! ActiveCorrespondenceGame)',
+                  'if (showLocalReview && analysisState.isComputerAnalysisAllowed &&\n                options is! ActiveCorrespondenceGame)',
+              ),
+              (
+                  'localReviewMarks: analysisState.isComputerAnalysisAllowed ? localMarks : const {},',
+                  'localReviewMarks: showLocalReview && analysisState.isComputerAnalysisAllowed ? localMarks : const {},',
+              ),
+          ])
+
+          patch('lib/src/view/analysis/local_review_panel.dart', [
+              (
+                  '      ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).clear();',
+                  '''      final reviewId = widget.options.contextId.value;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || widget.options.contextId.value != reviewId) return;
+                  ref.read(localReviewMarksProvider(reviewId).notifier).clear();
+                });''',
+              ),
+          ])
+          PY
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          cache: true
+          flutter-version-file: pubspec.yaml
+
+      - name: Pobierz zaleznosci
+        run: flutter pub get
+
+      - name: Generuj kod Dart
+        run: dart run build_runner build
+
+      - name: Formatuj zmodyfikowane pliki
+        run: |
+          dart format \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/tree_view.dart \
+            lib/src/view/analysis/local_review_panel.dart
+
+      - name: Sprawdz bledy kodu
+        run: |
+          flutter analyze --no-pub --no-fatal-warnings --no-fatal-infos \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/tree_view.dart \
+            lib/src/view/analysis/local_review_panel.dart
+
+      - name: Zbuduj APK
+        run: |
+          flutter build apk --debug \
+            --dart-define=LICHESS_HOST=lichess.org \
+            --dart-define=LICHESS_WS_HOST=socket.lichess.org
+
+      - name: Zapisz sprawdzone zmiany w repozytorium
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            lib/src/view/analysis/analysis_screen.dart \
+            lib/src/view/analysis/tree_view.dart \
+            lib/src/view/analysis/local_review_panel.dart
+          if ! git diff --cached --quiet; then
+            git commit -m "Move game review to separate screen and fix Riverpod"
+            git push origin HEAD:main
+          else
+            echo "Wszystkie zmiany sa juz w repozytorium"
+          fi
+
+      - name: Udostepnij gotowy APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Deep-Violet-Game-Review-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
