@@ -37,6 +37,133 @@ class LocalReviewMarksController(final String contextId)
   void clear() => state = {};
 }
 
+/// Additional information for the separate Deep Violet game review screen.
+/// The board and the coach share the same move path, so they stay in sync.
+typedef LocalReviewDetail = ({
+  String title,
+  String explanation,
+  String score,
+  String? bestMove,
+  Move? continuation,
+  Color color,
+  String symbol,
+});
+
+final localReviewDetailsProvider = NotifierProvider.autoDispose
+    .family<LocalReviewDetailsController, Map<UciPath, LocalReviewDetail>, String>(
+      LocalReviewDetailsController.new,
+      name: 'LocalReviewDetailsProvider',
+    );
+
+class LocalReviewDetailsController(final String contextId)
+    extends Notifier<Map<UciPath, LocalReviewDetail>> {
+  @override
+  Map<UciPath, LocalReviewDetail> build() => {};
+
+  void replace(Map<UciPath, LocalReviewDetail> values) => state = Map.unmodifiable(values);
+  void clear() => state = {};
+}
+
+/// Compact on-board coaching strip, visible without scrolling the move list.
+class LocalReviewCoach extends ConsumerWidget {
+  const LocalReviewCoach({
+    required this.options,
+    required this.root,
+    required this.currentPath,
+    required this.onJump,
+    super.key,
+  });
+
+  final AnalysisOptions options;
+  final ViewRoot root;
+  final UciPath currentPath;
+  final void Function(UciPath) onJump;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = ref.watch(localReviewDetailsProvider(options.contextId.value));
+    final paths = <UciPath>[UciPath.empty];
+    var path = UciPath.empty;
+    for (final node in root.mainline) {
+      path = path + node.id;
+      paths.add(path);
+    }
+    final index = paths.indexOf(currentPath);
+    final detail = details[currentPath];
+    final canBack = index > 0;
+    final canNext = index >= 0 && index < paths.length - 1;
+    final accent = detail?.color ?? const Color(0xFFAE74FF);
+    final title = detail == null
+        ? (index == 0
+              ? 'Gotowa na przegląd partii?'
+              : 'Ruch ${index < 0 ? 'w wariancie' : '$index z ${paths.length - 1}'}')
+        : '${detail.symbol} ${detail.title}';
+    final subtitle =
+        detail?.explanation ??
+        (details.isEmpty
+            ? 'Uruchom ocenę Stockfisha pod planszą, żeby zobaczyć komentarze.'
+            : 'Wybierz oceniony ruch, by zobaczyć wskazówkę.');
+
+    return Container(
+      height: 83,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF21162F),
+        border: Border(bottom: BorderSide(color: accent.withValues(alpha: 0.38))),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.psychology_outlined, color: accent, size: 23),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: accent, fontSize: 13, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xFFE8DDF7), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 5),
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: Color(0xFFD9BAFF)),
+            onPressed: canBack ? () => onJump(paths[index - 1]) : null,
+            tooltip: 'Poprzedni ruch',
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: Color(0xFFD9BAFF)),
+            onPressed: canNext ? () => onJump(paths[index + 1]) : null,
+            tooltip: 'Następny ruch',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 enum _ReviewMode {
   fast('Szybka', 'Krótsza analiza', Duration(seconds: 1), 10),
   detailed('Szczegółowa', 'Głębsza analiza', Duration(seconds: 4), 17);
@@ -70,6 +197,7 @@ typedef _ReviewedMove = ({
   String moveText,
   String beforeFen,
   String? bestMove,
+  Move? continuation,
   String score,
   Side side,
   double advantage,
@@ -127,6 +255,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || widget.options.contextId.value != reviewId) return;
         ref.read(localReviewMarksProvider(reviewId).notifier).clear();
+        ref.read(localReviewDetailsProvider(reviewId).notifier).clear();
       });
     }
   }
@@ -257,11 +386,27 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
     };
   }
 
+  String _explanation(_Grade grade, String? bestMove) {
+    final alternative = bestMove == null ? '' : ' Lepsza możliwość: $bestMove.';
+    return switch (grade) {
+      _Grade.brilliant =>
+        'Ciekawe poświęcenie lub ruch oznaczony !! w PGN. Sprawdź wariant silnika.',
+      _Grade.best => 'Według Stockfisha to najlepszy ruch w przeanalizowanej pozycji.',
+      _Grade.excellent => 'Bardzo mocny ruch, bliski najlepszemu wariantowi.',
+      _Grade.good => 'Solidny ruch, który nie pogarsza istotnie szans.',
+      _Grade.inaccuracy => 'Można było zagrać precyzyjniej.$alternative',
+      _Grade.mistake => 'Ten ruch zauważalnie pogarsza pozycję.$alternative',
+      _Grade.blunder =>
+        'Duża utrata szans. Cofnij ruch i spróbuj znaleźć lepszą kontynuację.$alternative',
+    };
+  }
+
   Future<void> _start() async {
     if (_running) return;
     final generation = ++_generation;
     final mainline = widget.root.mainline.toList();
     ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).clear();
+    ref.read(localReviewDetailsProvider(widget.options.contextId.value).notifier).clear();
     setState(() {
       _moves.clear();
       _completed = 0;
@@ -320,6 +465,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
               moveText: '$prefix ${node.sanMove.san}',
               beforeFen: before.fen,
               bestMove: bestSan,
+              continuation: after?.bestMove,
               score: after?.evalString ?? 'Mat',
               side: before.turn,
               advantage: advantage,
@@ -333,6 +479,18 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
       if (!mounted || generation != _generation) return;
       ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).replace({
         for (final move in _moves) move.path: (symbol: move.grade.symbol, color: move.grade.color),
+      });
+      ref.read(localReviewDetailsProvider(widget.options.contextId.value).notifier).replace({
+        for (final move in _moves)
+          move.path: (
+            title: '${move.moveText} • ${move.grade.label}',
+            explanation: _explanation(move.grade, move.bestMove),
+            score: move.score,
+            bestMove: move.bestMove,
+            continuation: move.continuation,
+            color: move.grade.color,
+            symbol: move.grade.symbol,
+          ),
       });
       setState(() {
         _finished = true;
@@ -471,50 +629,65 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                   child: Text(_message!, style: const TextStyle(fontSize: 12)),
                 ),
               if (_moves.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'WYKRES PRZEWAGI',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: colors.primary),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Powyżej środka: lepiej dla białych. Poniżej: dla czarnych.',
-                  style: TextStyle(fontSize: 10),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 135,
-                  child: material.CustomPaint(
-                    painter: _ReviewGraphPainter(
-                      values: _moves.map((m) => m.advantage).toList(),
-                      selected: selectedIndex,
-                      lineColor: colors.primary,
-                      foreground: colors.onSurfaceVariant,
-                    ),
-                    child: const SizedBox.expand(),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  initiallyExpanded: false,
+                  title: const Text(
+                    'Wykres i statystyki',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_moves.length} ocenionych ruchów',
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(fontSize: 10),
-                ),
-                const Divider(height: 24),
-                const Text(
-                  'PODSUMOWANIE RUCHÓW',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  subtitle: Text(
+                    '${_moves.length} przeanalizowanych ruchów',
+                    style: const TextStyle(fontSize: 11),
+                  ),
                   children: [
-                    Expanded(child: _countColumn('BIAŁE', Side.white, colors)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _countColumn('CZARNE', Side.black, colors)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'WYKRES PRZEWAGI',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: colors.primary),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Powyżej środka: lepiej dla białych. Poniżej: dla czarnych.',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 135,
+                      child: material.CustomPaint(
+                        painter: _ReviewGraphPainter(
+                          values: _moves.map((m) => m.advantage).toList(),
+                          selected: selectedIndex,
+                          lineColor: colors.primary,
+                          foreground: colors.onSurfaceVariant,
+                        ),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_moves.length} ocenionych ruchów',
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    const Divider(height: 24),
+                    const Text(
+                      'PODSUMOWANIE RUCHÓW',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _countColumn('BIAŁE', Side.white, colors)),
+                        const SizedBox(width: 16),
+                        Expanded(child: _countColumn('CZARNE', Side.black, colors)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-                const Divider(height: 24),
+                const Divider(height: 18),
                 const Text(
                   'PRZEGLĄD RUCHÓW',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),

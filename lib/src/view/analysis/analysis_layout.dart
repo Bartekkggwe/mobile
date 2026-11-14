@@ -94,6 +94,9 @@ class const AnalysisLayout({
   /// [kAnalysisBoardHeaderOrFooterHeight].
   final Widget? boardHeader,
 
+  /// A compact coaching strip displayed before the board in review mode.
+  final Widget? boardTop,
+
   /// A widget to show below the board.
   ///
   /// The widget will included in a parent container with a height of
@@ -243,6 +246,7 @@ class const AnalysisLayout({
                       mainAxisAlignment: MainAxisAlignment.start,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (boardTop != null) boardTop!,
                         ?engineLines,
                         if (pockets != null)
                           Align(
@@ -321,6 +325,7 @@ class const AnalysisLayout({
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                if (boardTop != null) boardTop!,
                 ?engineLines,
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: boardPadding.vertical / 2),

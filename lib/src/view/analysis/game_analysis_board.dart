@@ -7,12 +7,14 @@ import 'package:lichess_mobile/src/model/analysis/analysis_preferences.dart';
 import 'package:lichess_mobile/src/model/engine/position_evaluator.dart';
 import 'package:lichess_mobile/src/model/settings/board_preferences.dart';
 import 'package:lichess_mobile/src/view/analysis/analysis_board.dart';
+import 'package:lichess_mobile/src/view/analysis/local_review_panel.dart';
 
 class const GameAnalysisBoard({
   required final AnalysisOptions options,
   required super.boardSize,
   super.boardRadius,
   final bool shouldReplaceChildOnUserMove = false,
+  final bool showReviewHints = false,
 }) extends AnalysisBoard {
   @override
   ConsumerState<GameAnalysisBoard> createState() => _GameAnalysisBoardState();
@@ -58,7 +60,18 @@ class _GameAnalysisBoardState()
   @override
   ISet<Shape> get extraShapes {
     final analysisState = ref.watch(analysisControllerProvider(widget.options)).requireValue;
-    final pgnShapes = ISet(analysisState.pgnShapes.map((shape) => shape.chessground));
+    final detail = widget.showReviewHints
+        ? ref.watch(
+            localReviewDetailsProvider(widget.options.contextId.value),
+          )[analysisState.currentPath]
+        : null;
+    final reply = detail?.continuation;
+    final pgnShapes = ISet(<Shape>[
+      ...analysisState.pgnShapes.map((shape) => shape.chessground),
+      // The arrow represents the best NEXT move in the displayed position.
+      if (reply is NormalMove && analysisState.currentPosition.isLegal(reply))
+        Arrow(color: ShapeColor.green.color, orig: reply.from, dest: reply.to),
+    ]);
     return pgnShapes;
   }
 }

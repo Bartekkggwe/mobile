@@ -22,6 +22,7 @@ import 'package:lichess_mobile/src/view/analysis/analysis_share_screen.dart';
 import 'package:lichess_mobile/src/view/analysis/board_size_toggle_button.dart';
 import 'package:lichess_mobile/src/view/analysis/conditional_premoves.dart';
 import 'package:lichess_mobile/src/view/analysis/game_analysis_board.dart';
+import 'package:lichess_mobile/src/view/analysis/local_review_panel.dart';
 import 'package:lichess_mobile/src/view/analysis/retro_screen.dart';
 import 'package:lichess_mobile/src/view/analysis/server_analysis.dart';
 import 'package:lichess_mobile/src/view/analysis/tree_view.dart';
@@ -370,8 +371,20 @@ class const _Body({
         tabController: controller,
         pov: pov,
         sideToMove: analysisState.currentPosition.turn,
-        boardBuilder: (context, boardSize, borderRadius) =>
-            GameAnalysisBoard(options: options, boardSize: boardSize, boardRadius: borderRadius),
+        boardBuilder: (context, boardSize, borderRadius) => GameAnalysisBoard(
+          options: options,
+          boardSize: boardSize,
+          boardRadius: borderRadius,
+          showReviewHints: reviewMode,
+        ),
+        boardTop: reviewMode
+            ? LocalReviewCoach(
+                options: options,
+                root: analysisState.root,
+                currentPath: analysisState.currentPath,
+                onJump: (path) => ref.read(ctrlProvider.notifier).userJump(path),
+              )
+            : null,
         smallBoard: smallBoard,
         boardHeader: boardHeader,
         boardFooter: boardFooter,
