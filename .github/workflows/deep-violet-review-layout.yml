@@ -52,7 +52,7 @@ jobs:
             Widget build(BuildContext context) {
               return _AnalysisScreen(options: options);
             }
-          }'''.replace('              extends', '    extends').replace('            ', '  '),
+          }'''.replace('              extends', '    extends').replace('            ', '  ').replace('          }', '}'),
                   '''class const AnalysisScreen({
             required final AnalysisOptions options,
             final bool reviewMode = false,
@@ -94,7 +94,7 @@ jobs:
                 if (widget.options case ArchivedGame()) AnalysisTab.summary,
                 if (widget.showMoveTimes) AnalysisTab.moveTimes,
                 if (widget.options case ActiveCorrespondenceGame()) AnalysisTab.conditionalPremoves,
-              ];'''.replace('                ', '      '),
+              ];'''.replace('                ', '      ').replace('              ];', '    ];'),
                   '''    tabs = widget.reviewMode
                 ? [AnalysisTab.moves]
                 : [
