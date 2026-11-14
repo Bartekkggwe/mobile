@@ -60,20 +60,25 @@ typedef _AnalysisScreenData = ({
   bool hasChartClocks,
 });
 
-class const AnalysisScreen({required final AnalysisOptions options, super.key})
-    extends StatelessWidget {
-  static Route<dynamic> buildRoute(AnalysisOptions options) {
-    return buildScreenRoute(screen: AnalysisScreen(options: options));
-  }
+class const AnalysisScreen({
+  required final AnalysisOptions options,
+  final bool reviewMode = false,
+  super.key,
+}) extends StatelessWidget {
+  static Route<dynamic> buildRoute(AnalysisOptions options) =>
+      buildScreenRoute(screen: AnalysisScreen(options: options));
+
+  static Route<dynamic> buildReviewRoute(AnalysisOptions options) =>
+      buildScreenRoute(screen: AnalysisScreen(options: options, reviewMode: true));
 
   @override
-  Widget build(BuildContext context) {
-    return _AnalysisScreen(options: options);
-  }
+  Widget build(BuildContext context) => _AnalysisScreen(options: options, reviewMode: reviewMode);
 }
 
-class const _AnalysisScreen({required final AnalysisOptions options})
-    extends ConsumerStatefulWidget {
+class const _AnalysisScreen({
+  required final AnalysisOptions options,
+  required final bool reviewMode,
+}) extends ConsumerStatefulWidget {
   @override
   ConsumerState<_AnalysisScreen> createState() => _AnalysisScreenState();
 }
@@ -123,20 +128,22 @@ class _AnalysisScreenState() extends ConsumerState<_AnalysisScreen> {
         resizeToAvoidBottomInset: false,
         appBar: PlatformAppBar(
           compactButtons: true,
-          title: switch (value?.archivedGame) {
-            final archivedGame? => ExportedGameTitle(
-              meta: archivedGame.meta,
-              lastMoveAt: archivedGame.data.lastMoveAt,
-              isImport: archivedGame.source.isImport,
-              importDate: archivedGame.data.importDate,
-              isTournament: archivedGame.data.arenaTournamentId != null,
-            ),
-            null when value != null => VariantAppBarTitle(
-              variant: value.variant,
-              title: context.l10n.analysis,
-            ),
-            null => const ExportedGameTitleLoading(),
-          },
+          title: widget.reviewMode
+              ? const Text('Ocena partii')
+              : switch (value?.archivedGame) {
+                  final archivedGame? => ExportedGameTitle(
+                    meta: archivedGame.meta,
+                    lastMoveAt: archivedGame.data.lastMoveAt,
+                    isImport: archivedGame.source.isImport,
+                    importDate: archivedGame.data.importDate,
+                    isTournament: archivedGame.data.arenaTournamentId != null,
+                  ),
+                  null when value != null => VariantAppBarTitle(
+                    variant: value.variant,
+                    title: context.l10n.analysis,
+                  ),
+                  null => const ExportedGameTitleLoading(),
+                },
           actions: [
             if (value != null)
               ContextMenuIconButton(
@@ -169,6 +176,7 @@ class _AnalysisScreenState() extends ConsumerState<_AnalysisScreen> {
         body: switch (asyncState) {
           AsyncData(:final value) => _TabbedBody(
             options: widget.options,
+            reviewMode: widget.reviewMode,
             // Move times can only be shown for games played with a clock.
             showMoveTimes: value.hasChartClocks,
           ),
@@ -220,8 +228,11 @@ class _AnalysisScreenState() extends ConsumerState<_AnalysisScreen> {
 ///
 /// Which tabs are available depends on the loaded game, so the list can only be built once the
 /// analysis state is available.
-class const _TabbedBody({required final AnalysisOptions options, required final bool showMoveTimes})
-    extends StatefulWidget {
+class const _TabbedBody({
+  required final AnalysisOptions options,
+  required final bool showMoveTimes,
+  required final bool reviewMode,
+}) extends StatefulWidget {
   @override
   State<_TabbedBody> createState() => _TabbedBodyState();
 }
@@ -237,13 +248,15 @@ class _TabbedBodyState() extends State<_TabbedBody> with SingleTickerProviderSta
   void initState() {
     super.initState();
 
-    tabs = [
-      AnalysisTab.explorer,
-      AnalysisTab.moves,
-      if (widget.options case ArchivedGame()) AnalysisTab.summary,
-      if (widget.showMoveTimes) AnalysisTab.moveTimes,
-      if (widget.options case ActiveCorrespondenceGame()) AnalysisTab.conditionalPremoves,
-    ];
+    tabs = widget.reviewMode
+        ? [AnalysisTab.moves]
+        : [
+            AnalysisTab.explorer,
+            AnalysisTab.moves,
+            if (widget.options case ArchivedGame()) AnalysisTab.summary,
+            if (widget.showMoveTimes) AnalysisTab.moveTimes,
+            if (widget.options case ActiveCorrespondenceGame()) AnalysisTab.conditionalPremoves,
+          ];
 
     _tabController = TabController(
       vsync: this,
@@ -263,6 +276,7 @@ class _TabbedBodyState() extends State<_TabbedBody> with SingleTickerProviderSta
     final smallBoard = _smallBoard ?? isSmallBoardByDefault(context);
     return _Body(
       options: widget.options,
+      reviewMode: widget.reviewMode,
       controller: _tabController,
       tabs: tabs,
       smallBoard: smallBoard,
@@ -273,6 +287,7 @@ class _TabbedBodyState() extends State<_TabbedBody> with SingleTickerProviderSta
 
 class const _Body({
   required final AnalysisOptions options,
+  required final bool reviewMode,
   required final TabController controller,
   required final List<AnalysisTab> tabs,
   required final bool smallBoard,
@@ -377,6 +392,7 @@ class const _Body({
             : null,
         bottomBar: _BottomBar(
           options: options,
+          reviewMode: reviewMode,
           tabController: controller,
           smallBoard: smallBoard,
           onToggleSmallBoard: onToggleSmallBoard,
@@ -384,32 +400,55 @@ class const _Body({
         bottomBarOverContent: true,
         pockets: analysisState.currentPosition.pockets,
         children: [
-          ExplorerView(
-            pov: pov,
-            isComputerAnalysisAllowed: analysisState.isComputerAnalysisAllowed,
-            position: currentNode.position,
-            opening: explorerOpening(
-              context,
-              variant: analysisState.variant,
-              isRootNode: analysisState.currentNode.isRoot,
-              nodeOpening: analysisState.currentNode.opening,
-              branchOpening: analysisState.currentBranchOpening,
+          if (!reviewMode) ...[
+            ExplorerView(
+              pov: pov,
+              isComputerAnalysisAllowed: analysisState.isComputerAnalysisAllowed,
+              position: currentNode.position,
+              opening: explorerOpening(
+                context,
+                variant: analysisState.variant,
+                isRootNode: analysisState.currentNode.isRoot,
+                nodeOpening: analysisState.currentNode.opening,
+                branchOpening: analysisState.currentBranchOpening,
+              ),
+              onMoveSelected: (move) {
+                ref.read(ctrlProvider.notifier).onUserMove(move);
+              },
             ),
-            onMoveSelected: (move) {
-              ref.read(ctrlProvider.notifier).onUserMove(move);
-            },
-          ),
-          AnalysisTreeView(options),
-          if (options case ArchivedGame())
-            ServerAnalysisSummary(
-              serverAnalysisSource: analysisState.serverAnalysisSource,
-              playersAnalysis: analysisState.playersAnalysis,
-              pgnHeaders: analysisState.pgnHeaders,
-              whiteUser: analysisState.archivedGame?.white.user,
-              blackUser: analysisState.archivedGame?.black.user,
-              acplChartParams: analysisState.acplChartData != null
-                  ? (
-                      acplChartData: analysisState.acplChartData!,
+            AnalysisTreeView(options),
+            if (options case ArchivedGame())
+              ServerAnalysisSummary(
+                serverAnalysisSource: analysisState.serverAnalysisSource,
+                playersAnalysis: analysisState.playersAnalysis,
+                pgnHeaders: analysisState.pgnHeaders,
+                whiteUser: analysisState.archivedGame?.white.user,
+                blackUser: analysisState.archivedGame?.black.user,
+                acplChartParams: analysisState.acplChartData != null
+                    ? (
+                        acplChartData: analysisState.acplChartData!,
+                        division: analysisState.division,
+                        rootPly: analysisState.root.position.ply,
+                        currentNodePly: analysisState.currentPosition.ply,
+                        isOnMainline: analysisState.isOnMainline,
+                        onJumpToNode: ref
+                            .read(analysisControllerProvider(options).notifier)
+                            .jumpToNthNodeOnMainline,
+                      )
+                    : null,
+                onRequestServerAnalysis: ref.read(ctrlProvider.notifier).requestServerAnalysis,
+              ),
+            if (tabs.contains(AnalysisTab.moveTimes))
+              ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0.0),
+                    child: ListSectionHeader(title: Text(context.l10n.moveTimes)),
+                  ),
+                  MoveTimesChart(
+                    params: (
+                      moveTimes: analysisState.chartMoveTimes,
+                      clocks: analysisState.chartClocks,
                       division: analysisState.division,
                       rootPly: analysisState.root.position.ply,
                       currentNodePly: analysisState.currentPosition.ply,
@@ -417,33 +456,13 @@ class const _Body({
                       onJumpToNode: ref
                           .read(analysisControllerProvider(options).notifier)
                           .jumpToNthNodeOnMainline,
-                    )
-                  : null,
-              onRequestServerAnalysis: ref.read(ctrlProvider.notifier).requestServerAnalysis,
-            ),
-          if (tabs.contains(AnalysisTab.moveTimes))
-            ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0.0),
-                  child: ListSectionHeader(title: Text(context.l10n.moveTimes)),
-                ),
-                MoveTimesChart(
-                  params: (
-                    moveTimes: analysisState.chartMoveTimes,
-                    clocks: analysisState.chartClocks,
-                    division: analysisState.division,
-                    rootPly: analysisState.root.position.ply,
-                    currentNodePly: analysisState.currentPosition.ply,
-                    isOnMainline: analysisState.isOnMainline,
-                    onJumpToNode: ref
-                        .read(analysisControllerProvider(options).notifier)
-                        .jumpToNthNodeOnMainline,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          if (options case ActiveCorrespondenceGame()) ConditionalPremoves(options),
+                ],
+              ),
+            if (options case ActiveCorrespondenceGame()) ConditionalPremoves(options),
+          ],
+          if (reviewMode) AnalysisTreeView(options, showLocalReview: true),
         ],
       ),
     );
@@ -470,6 +489,7 @@ class const _PlayerName({required final Player player}) extends StatelessWidget 
 
 class const _BottomBar({
   required final AnalysisOptions options,
+  required final bool reviewMode,
   required final TabController tabController,
   required final bool smallBoard,
   required final VoidCallback onToggleSmallBoard,
@@ -495,6 +515,15 @@ class const _BottomBar({
               BoardSizeToggleButton(smallBoard: smallBoard, onTap: onToggleSmallBoard),
           ],
         ),
+        if (!reviewMode &&
+            analysisState.isComputerAnalysisAllowed &&
+            options is! ActiveCorrespondenceGame)
+          BottomBarButton(
+            key: const ValueKey('deep-violet-game-review'),
+            label: 'Ocena',
+            icon: Icons.star_rounded,
+            onTap: () => Navigator.of(context).push(AnalysisScreen.buildReviewRoute(options)),
+          ),
         if (analysisState.isComputerAnalysisAllowed)
           EngineToggleButton(
             filters: (context: analysisState.evaluationContext, path: analysisState.currentPath),

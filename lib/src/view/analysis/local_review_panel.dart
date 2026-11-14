@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:dartchess/dartchess.dart';
@@ -63,8 +62,7 @@ enum _Grade {
   final String symbol;
   final Color color;
 
-  bool get isError =>
-      this == inaccuracy || this == mistake || this == blunder;
+  bool get isError => this == inaccuracy || this == mistake || this == blunder;
 }
 
 typedef _ReviewedMove = ({
@@ -125,7 +123,11 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
       _completed = 0;
       _total = 0;
       _message = null;
-      ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).clear();
+      final reviewId = widget.options.contextId.value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.options.contextId.value != reviewId) return;
+        ref.read(localReviewMarksProvider(reviewId).notifier).clear();
+      });
     }
   }
 
@@ -146,10 +148,11 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
       waiting.complete(null);
     }
     ref.read(positionEvaluatorProvider(_context).notifier).stop();
-    if (mounted) setState(() {
-      _running = false;
-      _message = 'Analiza przerwana. Wyniki są niepełne.';
-    });
+    if (mounted)
+      setState(() {
+        _running = false;
+        _message = 'Analiza przerwana. Wyniki są niepełne.';
+      });
   }
 
   Future<ClientEval?> _evaluate(
@@ -209,22 +212,14 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
     return 0;
   }
 
-  bool _brilliantCandidate(
-    Position before,
-    ViewBranch node,
-    ClientEval pre,
-    ClientEval post,
-  ) {
+  bool _brilliantCandidate(Position before, ViewBranch node, ClientEval pre, ClientEval post) {
     if (widget.variant != Variant.standard || pre.depth < 15 || post.depth < 15) {
       return false;
     }
     final move = node.sanMove.move;
     if (move is! NormalMove) return false;
     final piece = before.board.roleAt(move.from);
-    if (piece != Role.queen &&
-        piece != Role.rook &&
-        piece != Role.bishop &&
-        piece != Role.knight) {
+    if (piece != Role.queen && piece != Role.rook && piece != Role.bishop && piece != Role.knight) {
       return false;
     }
     if (before.board.roleAt(move.to) != null) return false;
@@ -302,7 +297,8 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
             : await _evaluate(steps, generation, firstPosition: false);
         if (!mounted || generation != _generation) return;
 
-        if (previous != null && previous.depth >= 8 &&
+        if (previous != null &&
+            previous.depth >= 8 &&
             ((after != null && after.depth >= 8) || node.position.isCheckmate)) {
           final grade = node.position.isCheckmate
               ? _Grade.best
@@ -336,8 +332,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
       }
       if (!mounted || generation != _generation) return;
       ref.read(localReviewMarksProvider(widget.options.contextId.value).notifier).replace({
-        for (final move in _moves)
-          move.path: (symbol: move.grade.symbol, color: move.grade.color),
+        for (final move in _moves) move.path: (symbol: move.grade.symbol, color: move.grade.color),
       });
       setState(() {
         _finished = true;
@@ -386,16 +381,17 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                     color: grade.color.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(5),
                   ),
-                  child: Text(grade.symbol, style: TextStyle(
-                    color: grade.color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  )),
+                  child: Text(
+                    grade.symbol,
+                    style: TextStyle(color: grade.color, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
                 ),
                 const SizedBox(width: 5),
                 Expanded(child: Text(grade.label, style: const TextStyle(fontSize: 10))),
-                Text('${moves.where((m) => m.grade == grade).length}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                Text(
+                  '${moves.where((m) => m.grade == grade).length}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           ),
@@ -422,155 +418,193 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(children: [
-                Icon(Icons.analytics_outlined, color: colors.primary),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('DEEP VIOLET • OCENA PARTII',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14))),
-              ]),
-              const SizedBox(height: 6),
-              const Text('Analiza offline po zakończonej partii.',
-                style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, children: [
-                for (final mode in _ReviewMode.values)
-                  ChoiceChip(
-                    selected: _mode == mode,
-                    onSelected: _running ? null : (_) => setState(() => _mode = mode),
-                    label: Text(mode.title),
+              Row(
+                children: [
+                  Icon(Icons.analytics_outlined, color: colors.primary),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'DEEP VIOLET • OCENA PARTII',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
                   ),
-              ]),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text('Analiza offline po zakończonej partii.', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final mode in _ReviewMode.values)
+                    ChoiceChip(
+                      selected: _mode == mode,
+                      onSelected: _running ? null : (_) => setState(() => _mode = mode),
+                      label: Text(mode.title),
+                    ),
+                ],
+              ),
               const SizedBox(height: 4),
-              Text(_mode.description, style: TextStyle(
-                fontSize: 11, color: colors.onSurfaceVariant)),
+              Text(
+                _mode.description,
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              ),
               const SizedBox(height: 8),
               FilledButton.icon(
                 onPressed: _running ? _stop : _start,
                 icon: Icon(_running ? Icons.stop_circle_outlined : Icons.auto_graph),
-                label: Text(_running ? 'Zatrzymaj ocenę ($_completed/$_total)'
-                    : _finished ? 'Oceń ponownie' : 'Ocena partii'),
+                label: Text(
+                  _running
+                      ? 'Zatrzymaj ocenę ($_completed/$_total)'
+                      : _finished
+                      ? 'Oceń ponownie'
+                      : 'Ocena partii',
+                ),
               ),
               if (_running) ...[
                 const SizedBox(height: 8),
                 LinearProgressIndicator(value: _total == 0 ? null : _completed / _total),
               ],
-              if (_message != null) Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_message!, style: const TextStyle(fontSize: 12)),
-              ),
+              if (_message != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(_message!, style: const TextStyle(fontSize: 12)),
+                ),
               if (_moves.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Text('WYKRES PRZEWAGI', style: TextStyle(
-                  fontWeight: FontWeight.bold, color: colors.primary)),
+                Text(
+                  'WYKRES PRZEWAGI',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colors.primary),
+                ),
                 const SizedBox(height: 4),
-                const Text('Powyżej środka: lepiej dla białych. Poniżej: dla czarnych.',
-                  style: TextStyle(fontSize: 10)),
+                const Text(
+                  'Powyżej środka: lepiej dla białych. Poniżej: dla czarnych.',
+                  style: TextStyle(fontSize: 10),
+                ),
                 const SizedBox(height: 8),
-                SizedBox(height: 135, child: material.CustomPaint(
-                  painter: _ReviewGraphPainter(
-                    values: _moves.map((m) => m.advantage).toList(),
-                    selected: selectedIndex,
-                    lineColor: colors.primary,
-                    foreground: colors.onSurfaceVariant,
+                SizedBox(
+                  height: 135,
+                  child: material.CustomPaint(
+                    painter: _ReviewGraphPainter(
+                      values: _moves.map((m) => m.advantage).toList(),
+                      selected: selectedIndex,
+                      lineColor: colors.primary,
+                      foreground: colors.onSurfaceVariant,
+                    ),
+                    child: const SizedBox.expand(),
                   ),
-                  child: const SizedBox.expand(),
-                )),
+                ),
                 const SizedBox(height: 4),
-                Text('${_moves.length} ocenionych ruchów',
+                Text(
+                  '${_moves.length} ocenionych ruchów',
                   textAlign: TextAlign.end,
-                  style: const TextStyle(fontSize: 10)),
+                  style: const TextStyle(fontSize: 10),
+                ),
                 const Divider(height: 24),
-                const Text('PODSUMOWANIE RUCHÓW',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                const Text(
+                  'PODSUMOWANIE RUCHÓW',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: _countColumn('BIAŁE', Side.white, colors)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _countColumn('CZARNE', Side.black, colors)),
-                ]),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _countColumn('BIAŁE', Side.white, colors)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _countColumn('CZARNE', Side.black, colors)),
+                  ],
+                ),
                 const Divider(height: 24),
-                const Text('PRZEGLĄD RUCHÓW', style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 13)),
+                const Text(
+                  'PRZEGLĄD RUCHÓW',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
                 const SizedBox(height: 6),
-                if (selected != null) Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: selected.grade.color.withValues(alpha: 0.11),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: selected.grade.color.withValues(alpha: 0.35)),
+                if (selected != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: selected.grade.color.withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: selected.grade.color.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          selected.grade.symbol,
+                          style: TextStyle(
+                            color: selected.grade.color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${selected.moveText} • ${selected.grade.label}\n'
+                            'Ocena: ${selected.score}'
+                            '${selected.bestMove == null ? '' : ' • Najlepszy: ${selected.bestMove}'}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const Text(
+                    'Przewiń partię lub wybierz ruch poniżej.',
+                    style: TextStyle(fontSize: 11),
                   ),
-                  child: Row(children: [
-                    Text(selected.grade.symbol, style: TextStyle(
-                      color: selected.grade.color, fontWeight: FontWeight.bold, fontSize: 21)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(
-                      '${selected.moveText} • ${selected.grade.label}\n'
-                      'Ocena: ${selected.score}'
-                      '${selected.bestMove == null ? '' : ' • Najlepszy: ${selected.bestMove}'}',
-                      style: const TextStyle(fontSize: 12),
-                    )),
-                  ]),
-                ) else const Text('Przewiń partię lub wybierz ruch poniżej.',
-                  style: TextStyle(fontSize: 11)),
                 const SizedBox(height: 8),
-                SizedBox(height: 54, child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _moves.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 5),
-                  itemBuilder: (context, i) {
-                    
-                    final move = _moves[i];
-                    final isSelected = move.path == widget.currentPath;
-                    return InkWell(
-                      onTap: () => widget.onJump(move.path),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        constraints: const BoxConstraints(minWidth: 63),
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: move.grade.color.withValues(
-                            alpha: isSelected ? 0.26 : 0.09,
+                SizedBox(
+                  height: 54,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _moves.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 5),
+                    itemBuilder: (context, i) {
+                      final move = _moves[i];
+                      final isSelected = move.path == widget.currentPath;
+                      return InkWell(
+                        onTap: () => widget.onJump(move.path),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 63),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: move.grade.color.withValues(alpha: isSelected ? 0.26 : 0.09),
+                            border: Border.all(
+                              color: isSelected
+                                  ? move.grade.color
+                                  : move.grade.color.withValues(alpha: 0.2),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          border: Border.all(
-                            color: isSelected
-                                ? move.grade.color
-                                : move.grade.color.withValues(alpha: 0.2),
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              move.grade.symbol,
-                              style: TextStyle(
-                                color: move.grade.color,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                move.grade.symbol,
+                                style: TextStyle(
+                                  color: move.grade.color,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                ),
                               ),
-                            ),
-                            Text(
-                              move.moveText,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          ],
+                              Text(move.moveText, style: const TextStyle(fontSize: 10)),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                )),
+                      );
+                    },
+                  ),
+                ),
                 const SizedBox(height: 12),
                 if (failures.isNotEmpty) ...[
                   Text(
                     'RUCHY DO POPRAWY (${failures.length})',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   for (final move in failures)
                     ListTile(
@@ -579,8 +613,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                       onTap: () => widget.onJump(move.path),
                       leading: CircleAvatar(
                         radius: 16,
-                        backgroundColor:
-                            move.grade.color.withValues(alpha: 0.14),
+                        backgroundColor: move.grade.color.withValues(alpha: 0.14),
                         child: Text(
                           move.grade.symbol,
                           style: TextStyle(
@@ -611,10 +644,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                   'Stockfisha. „Genialny*” to heurystyka '
                   'poświęcenia lub oznaczenie !! z PGN, '
                   'a nie oficjalny algorytm Chess.com.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant),
                 ),
               ],
             ],
@@ -655,19 +685,15 @@ class _ReviewGraphPainter extends material.CustomPainter {
     final points = <material.Offset>[];
 
     for (var i = 0; i < values.length; i++) {
-      final x = values.length == 1
-          ? size.width / 2
-          : i * size.width / (values.length - 1);
+      final x = values.length == 1 ? size.width / 2 : i * size.width / (values.length - 1);
 
-      final y = middle -
-          values[i].clamp(-1.0, 1.0) * (middle - 8);
+      final y = middle - values[i].clamp(-1.0, 1.0) * (middle - 8);
 
       points.add(material.Offset(x, y));
     }
 
     if (points.length > 1) {
-      final path = material.Path()
-        ..moveTo(points[0].dx, points[0].dy);
+      final path = material.Path()..moveTo(points[0].dx, points[0].dy);
 
       for (final point in points.skip(1)) {
         path.lineTo(point.dx, point.dy);
@@ -694,17 +720,9 @@ class _ReviewGraphPainter extends material.CustomPainter {
           ..strokeWidth = 1,
       );
 
-      canvas.drawCircle(
-        point,
-        5,
-        material.Paint()..color = lineColor,
-      );
+      canvas.drawCircle(point, 5, material.Paint()..color = lineColor);
 
-      canvas.drawCircle(
-        point,
-        2,
-        material.Paint()..color = Colors.white,
-      );
+      canvas.drawCircle(point, 2, material.Paint()..color = Colors.white);
     }
   }
 
@@ -716,4 +734,3 @@ class _ReviewGraphPainter extends material.CustomPainter {
         old.foreground != foreground;
   }
 }
-

@@ -1,4 +1,3 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lichess_mobile/src/model/analysis/analysis_controller.dart';
 import 'package:lichess_mobile/src/model/analysis/analysis_preferences.dart';
@@ -8,7 +7,11 @@ import 'package:lichess_mobile/src/widgets/pgn.dart';
 import 'package:lichess_mobile/src/widgets/variations_bar.dart';
 import 'package:material_ui/material_ui.dart';
 
-class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidget {
+class AnalysisTreeView extends ConsumerWidget {
+  const AnalysisTreeView(this.options, {this.showLocalReview = false, super.key});
+
+  final AnalysisOptions options;
+  final bool showLocalReview;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ctrlProvider = analysisControllerProvider(options);
@@ -16,11 +19,9 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
     final prefs = ref.watch(analysisPreferencesProvider);
     final localMarks = ref.watch(localReviewMarksProvider(options.contextId.value));
 
-    final enableServerAnalysis =
-        !options.isLichessGameAnalysis || prefs.enableServerAnalysis;
+    final enableServerAnalysis = !options.isLichessGameAnalysis || prefs.enableServerAnalysis;
     final currentNode =
-        analysisState.root.branchesOn(analysisState.currentPath).lastOrNull ??
-        analysisState.root;
+        analysisState.root.branchesOn(analysisState.currentPath).lastOrNull ?? analysisState.root;
 
     return MovesWithVariationsBar(
       currentNode: currentNode,
@@ -31,7 +32,8 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: Column(
           children: [
-            if (analysisState.isComputerAnalysisAllowed &&
+            if (showLocalReview &&
+                analysisState.isComputerAnalysisAllowed &&
                 options is! ActiveCorrespondenceGame)
               LocalReviewPanel(
                 key: ValueKey('review-${options.contextId.value}'),
@@ -51,7 +53,9 @@ class const AnalysisTreeView(final AnalysisOptions options) extends ConsumerWidg
               shouldShowComputerAnalysis: enableServerAnalysis,
               shouldShowComments: enableServerAnalysis && prefs.showPgnComments,
               shouldShowAnnotations: enableServerAnalysis && prefs.showAnnotations,
-              localReviewMarks: analysisState.isComputerAnalysisAllowed ? localMarks : const {},
+              localReviewMarks: showLocalReview && analysisState.isComputerAnalysisAllowed
+                  ? localMarks
+                  : const {},
               premovePaths: analysisState.forecast?.lines,
               displayMode: prefs.inlineNotation ? .inlineNotation : .twoColumn,
             ),
