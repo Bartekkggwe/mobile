@@ -150,6 +150,12 @@ class _BodyState() extends ConsumerState<_Body> {
               context: context,
               builder: (context) => OverTheBoardGameResultDialog(
                 game: newGameState.game,
+                onResumeAfterMate: newGameState.canResumeAfterMate
+                    ? () {
+                        Navigator.pop(context);
+                        ref.read(overTheBoardGameControllerProvider.notifier).resumeAfterMate();
+                      }
+                    : null,
                 onRematch: () {
                   setState(() {
                     orientation = orientation.opposite;

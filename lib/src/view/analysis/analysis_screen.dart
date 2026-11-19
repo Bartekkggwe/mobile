@@ -377,7 +377,19 @@ class const _Body({
           boardRadius: borderRadius,
           showReviewHints: reviewMode,
         ),
-        boardTop: reviewMode
+        boardTop:
+            analysisState.currentPosition.isCheckmate &&
+                analysisState.canGoBack &&
+                analysisState.isComputerAnalysisAllowed
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: FilledButton.icon(
+                  onPressed: () => ref.read(ctrlProvider.notifier).userPrevious(),
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Cofnij mata i kontynuuj analizę'),
+                ),
+              )
+            : reviewMode
             ? LocalReviewCoach(
                 options: options,
                 root: analysisState.root,
@@ -393,7 +405,8 @@ class const _Body({
                 return EngineGauge(params: analysisState.engineGaugeParams(enginePrefs));
               }
             : null,
-        engineLines: isEngineAvailable && numEvalLines > 0 && analysisPrefs.showEngineLines
+        engineLines:
+            !reviewMode && isEngineAvailable && numEvalLines > 0 && analysisPrefs.showEngineLines
             ? EngineLines(
                 filters: (
                   context: analysisState.evaluationContext,
@@ -537,7 +550,7 @@ class const _BottomBar({
             icon: Icons.star_rounded,
             onTap: () => Navigator.of(context).push(AnalysisScreen.buildReviewRoute(options)),
           ),
-        if (analysisState.isComputerAnalysisAllowed)
+        if (!reviewMode && analysisState.isComputerAnalysisAllowed)
           EngineToggleButton(
             filters: (context: analysisState.evaluationContext, path: analysisState.currentPath),
             savedEval: analysisState.currentNode.eval,
@@ -554,7 +567,7 @@ class const _BottomBar({
               child: BottomBarButton(
                 key: const ValueKey('goto-previous'),
                 onTap: analysisState.canGoBack ? () => _moveBackward(ref) : null,
-                label: 'Previous',
+                label: 'Wstecz',
                 icon: CupertinoIcons.chevron_back,
                 showTooltip: false,
               ),

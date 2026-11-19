@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lichess_mobile/src/model/account/account_repository.dart';
 import 'package:lichess_mobile/src/model/common/chess.dart';
+import 'package:lichess_mobile/src/model/common/time_increment.dart';
 import 'package:lichess_mobile/src/model/lobby/game_seek.dart';
 import 'package:lichess_mobile/src/model/lobby/game_setup_preferences.dart';
 import 'package:lichess_mobile/src/network/connectivity.dart';
@@ -32,6 +33,7 @@ class const CreateGameWidget({
     final account = ref.watch(accountProvider).value;
     final userPerf = account?.perfs[playPrefs.realTimePerf];
     final canUseRatingRange = userPerf != null && userPerf.provisional != true;
+    final compatibleClock = GameSeek.supportsOnlineTime(playPrefs.timeIncrement);
 
     final labelStyle = Theme.of(context).textTheme.labelMedium
         ?.copyWith(color: textShade(context, 0.5), height: 1.0);
@@ -253,9 +255,27 @@ class const CreateGameWidget({
             ],
           ),
         ],
+        if (!compatibleClock)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Ten czas jest za krótki dla Lichess Board API. Wybierz rapid lub classical.',
+                ),
+                TextButton(
+                  onPressed: () => ref
+                      .read(gameSetupPreferencesProvider.notifier)
+                      .setTimeIncrement(const TimeIncrement(600, 0)),
+                  child: const Text('Ustaw 10+0'),
+                ),
+              ],
+            ),
+          ),
         FilledButton.icon(
           icon: const Icon(Icons.groups),
-          onPressed: connectionStatus == LichessConnectionStatus.online
+          onPressed: compatibleClock && connectionStatus == LichessConnectionStatus.online
               ? () {
                   // Pops the play bottom sheet
                   Navigator.of(context).popUntil((route) => route is! PopupRoute);

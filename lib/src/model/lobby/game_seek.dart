@@ -109,6 +109,13 @@ sealed class const GameSeek._() with _$GameSeek {
     timeIncrement != null ? Speed.fromTimeIncrement(timeIncrement!) : Speed.correspondence,
   );
 
+  /// Third-party Board API clients are limited to rapid or slower games.
+  static bool supportsOnlineTime(TimeIncrement time) =>
+      !time.isInfinite && time.estimatedDuration.inSeconds >= 480;
+
+  bool get isBoardApiCompatible =>
+      clock == null ? days != null : supportsOnlineTime(timeIncrement!);
+
   Map<String, String> get requestBody => {
     if (clock != null) 'time': (clock!.$1.inSeconds / 60).toString(),
     if (clock != null) 'increment': clock!.$2.inSeconds.toString(),

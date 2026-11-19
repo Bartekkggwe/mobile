@@ -142,6 +142,34 @@ class OverTheBoardGameController() extends Notifier<OverTheBoardGameState> {
     );
   }
 
+  void resumeAfterMate() {
+    if (!state.canResumeAfterMate) return;
+    final finalSteps = state.game.steps.removeLast();
+    state = state.copyWith(
+      game: state.game.copyWith(
+        steps: finalSteps,
+        status: GameStatus.started,
+        winner: null,
+        isThreefoldRepetition: false,
+      ),
+      stepCursor: finalSteps.length - 1,
+    );
+    final clock = ref.read(overTheBoardClockProvider);
+    Duration? white;
+    Duration? black;
+    for (final step in finalSteps.skip(1)) {
+      if (step.position.turn == Side.black) {
+        white = step.clock ?? white;
+      } else {
+        black = step.clock ?? black;
+      }
+    }
+    _clock.setupClock(clock.timeIncrement, whiteTimeLeft: white, blackTimeLeft: black);
+    if (!clock.timeIncrement.isInfinite && finalSteps.length > 1) {
+      _clock.resume(state.turn);
+    }
+  }
+
   void goForward() {
     if (state.canGoForward) {
       state = state.copyWith(stepCursor: state.stepCursor + 1);
@@ -207,6 +235,7 @@ sealed class const OverTheBoardGameState._() with _$OverTheBoardGameState {
   Position get currentPosition => game.stepAt(stepCursor).position;
   Side get turn => currentPosition.turn;
   bool get finished => game.finished;
+  bool get canResumeAfterMate => game.status == GameStatus.mate && game.steps.length > 1;
   Move? get lastMove =>
       stepCursor > 0 ? Move.parse(game.steps[stepCursor].sanMove!.move.uci) : null;
 

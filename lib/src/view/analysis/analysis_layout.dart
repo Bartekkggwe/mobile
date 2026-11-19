@@ -317,8 +317,14 @@ class const AnalysisLayout({
             final isSmallScreen = remainingHeight < kSmallHeightMinusBoard;
             final additionalBoardSidePaddingForPockets = isSmallScreen ? 70.0 : 16.0;
 
+            final availableReviewBoard = boardTop == null
+                ? defaultBoardSize
+                : (constraints.maxHeight - tabViewBottomInset - 255.0)
+                      .clamp(120.0, defaultBoardSize.clamp(120.0, double.infinity))
+                      .toDouble();
             final boardSize =
-                defaultBoardSize - (pockets != null ? additionalBoardSidePaddingForPockets : 0.0);
+                availableReviewBoard -
+                (pockets != null ? additionalBoardSidePaddingForPockets : 0.0);
 
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,

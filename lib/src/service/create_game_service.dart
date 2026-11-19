@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:deep_pick/deep_pick.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lichess_mobile/src/model/account/account_repository.dart';
+import 'package:lichess_mobile/src/model/account/ongoing_game.dart';
+import 'package:lichess_mobile/src/model/auth/auth_controller.dart';
 import 'package:lichess_mobile/src/model/challenge/challenge.dart';
 import 'package:lichess_mobile/src/model/challenge/challenge_repository.dart';
 import 'package:lichess_mobile/src/model/common/id.dart';
@@ -63,13 +65,30 @@ class CreateGameService(final Logger _log, {required final Ref ref, required fin
 
     final socketPool = ref.read(socketPoolProvider);
     final socketClient = socketPool.open(Uri(path: '/lobby/socket/v5'));
+    final client = lichessClient;
+    final signedIn = ref.read(authControllerProvider) != null;
+
+    // Snapshot existing games so the fallback never mistakes an old game for this seek.
+    Future<List<OngoingGame>> ongoingGames() async => (await client.readJson(
+      Uri(
+        path: '/api/account/playing',
+        queryParameters: {'nb': '50', '_': DateTime.now().millisecondsSinceEpoch.toString()},
+      ),
+      mapper: ongoingGamesFromServerJson,
+    )).toList();
 
     // ensure the pending game connection is closed in any case
-    final completer = Completer<GameSeekResponse>()..future.whenComplete(dispose);
+    final completer = Completer<GameSeekResponse>();
+    unawaited(
+      completer.future.then<void>(
+        (_) => dispose(),
+        onError: (Object error, StackTrace stack) => dispose(),
+      ),
+    );
 
     _lobbyConnection = (
       socketClient.stream.listen((event) {
-        if (event.topic == 'redirect') {
+        if (event.topic == 'redirect' && !completer.isCompleted) {
           final data = event.data as Map<String, dynamic>;
           completer.complete(GameSeekCreated(fullId: pick(data['id']).asGameFullIdOrThrow()));
         }
@@ -79,8 +98,18 @@ class CreateGameService(final Logger _log, {required final Ref ref, required fin
 
     _log.info('Creating new online game');
 
-    // wait for the socket to be ready
-    await socketClient.firstConnection;
+    // Keep the original socket redirect when available. A custom OAuth client may not
+    // receive that redirect, so signed-in users also have a Board API fallback.
+    try {
+      await socketClient.firstConnection.timeout(const Duration(seconds: 8));
+    } catch (error, stack) {
+      _log.warning('Lobby socket unavailable; trying the authenticated Board API', error, stack);
+      if (!signedIn && !completer.isCompleted) {
+        completer.completeError(error, stack);
+        return await completer.future;
+      }
+    }
+    if (completer.isCompleted) return await completer.future;
 
     GameSeek actualSeek = seek;
 
@@ -93,8 +122,44 @@ class CreateGameService(final Logger _log, {required final Ref ref, required fin
       }
     }
 
+    Set<GameFullId>? existing;
+    if (signedIn) {
+      try {
+        existing = (await ongoingGames().timeout(const Duration(seconds: 8)))
+            .map((game) => game.fullId)
+            .toSet();
+      } catch (error, stack) {
+        _log.warning('Could not snapshot ongoing games', error, stack);
+      }
+    }
+    if (completer.isCompleted) return await completer.future;
     try {
-      await LobbyRepository(lichessClient).createSeek(actualSeek, sri: sri);
+      await LobbyRepository(client).createSeek(actualSeek, sri: sri);
+      // The seek response stream closes on pairing or cancellation. If the socket did not
+      // deliver a redirect, identify the newly paired game using the account endpoint.
+      if (!completer.isCompleted && existing != null) {
+        for (var attempt = 0; attempt < 4 && !completer.isCompleted; attempt++) {
+          if (attempt > 0) await Future<void>.delayed(const Duration(seconds: 1));
+          if (completer.isCompleted) break;
+          try {
+            final games = await ongoingGames().timeout(const Duration(seconds: 5));
+            final matches = games
+                .where(
+                  (game) =>
+                      game.isRealTime &&
+                      !existing!.contains(game.fullId) &&
+                      game.perf == actualSeek.perf,
+                )
+                .toList();
+            if (matches.length == 1 && !completer.isCompleted) {
+              completer.complete(GameSeekCreated(fullId: matches.single.fullId));
+            }
+          } catch (error, stack) {
+            _log.warning('Pairing fallback failed', error, stack);
+          }
+        }
+      }
+      if (!completer.isCompleted) completer.complete(const GameSeekCancelled());
     } catch (e, st) {
       _log.warning('Failed to create seek', e, st);
       if (!completer.isCompleted) {

@@ -105,7 +105,7 @@ class LocalReviewCoach extends ConsumerWidget {
             : 'Wybierz oceniony ruch, by zobaczyć wskazówkę.');
 
     return Container(
-      height: 83,
+      height: 95,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: const Color(0xFF21162F),
@@ -133,14 +133,14 @@ class LocalReviewCoach extends ConsumerWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: accent, fontSize: 13, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xFFE8DDF7), fontSize: 11),
+                  style: const TextStyle(color: Color(0xFFE8DDF7), fontSize: 13),
                 ),
               ],
             ),
@@ -582,14 +582,14 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'DEEP VIOLET • OCENA PARTII',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                      'Przegląd partii',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text('Analiza offline po zakończonej partii.', style: TextStyle(fontSize: 12)),
+              const Text('Stockfish · analiza lokalna', style: TextStyle(fontSize: 13)),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -652,17 +652,33 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                       style: TextStyle(fontSize: 10),
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      height: 135,
-                      child: material.CustomPaint(
-                        painter: _ReviewGraphPainter(
-                          values: _moves.map((m) => m.advantage).toList(),
-                          selected: selectedIndex,
-                          lineColor: colors.primary,
-                          foreground: colors.onSurfaceVariant,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return GestureDetector(
+                          onTapDown: (event) {
+                            if (constraints.maxWidth <= 0 || !constraints.maxWidth.isFinite) return;
+                            final i =
+                                ((event.localPosition.dx / constraints.maxWidth) *
+                                        (_moves.length - 1))
+                                    .round()
+                                    .clamp(0, _moves.length - 1)
+                                    .toInt();
+                            widget.onJump(_moves[i].path);
+                          },
+                          child: SizedBox(
+                            height: 120,
+                            child: material.CustomPaint(
+                              painter: _ReviewGraphPainter(
+                                values: _moves.map((m) => m.advantage).toList(),
+                                selected: selectedIndex,
+                                lineColor: colors.primary,
+                                foreground: colors.onSurfaceVariant,
+                              ),
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -689,8 +705,8 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                 ),
                 const Divider(height: 18),
                 const Text(
-                  'PRZEGLĄD RUCHÓW',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  'Ruchy i oceny',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 6),
                 if (selected != null)
@@ -730,7 +746,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                   ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 54,
+                  height: 60,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _moves.length,
@@ -765,7 +781,7 @@ class _LocalReviewPanelState extends ConsumerState<LocalReviewPanel> {
                                   fontSize: 15,
                                 ),
                               ),
-                              Text(move.moveText, style: const TextStyle(fontSize: 10)),
+                              Text(move.moveText, style: const TextStyle(fontSize: 12)),
                             ],
                           ),
                         ),

@@ -37,9 +37,11 @@ class const QuickGameMatrix({super.key}) extends ConsumerWidget {
 
     final homePrefs = ref.watch(homePreferencesProvider);
     final enabledControls = TimeIncrement.matrixPresets
-        .where((tc) => !homePrefs.disabledTimeControls.contains(tc))
+        .where(
+          (tc) => GameSeek.supportsOnlineTime(tc) && !homePrefs.disabledTimeControls.contains(tc),
+        )
         .toList();
-    final showCustom = homePrefs.customButtonEnabled;
+    final showCustom = homePrefs.customButtonEnabled || enabledControls.isEmpty;
 
     final rows = <List<TimeIncrement>>[];
     for (var i = 0; i < enabledControls.length; i += 3) {
@@ -53,6 +55,13 @@ class const QuickGameMatrix({super.key}) extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(context.l10n.quickPairing, style: Styles.sectionTitle),
+        const Padding(
+          padding: EdgeInsets.only(top: 3),
+          child: Text(
+            'Online: rapid i classical (ograniczenie Lichess Board API).',
+            style: TextStyle(fontSize: 12),
+          ),
+        ),
         const SizedBox(height: 6.0),
         Container(
           decoration: scaffoldOpacity != 0
@@ -206,7 +215,8 @@ Future<void> showTimeControlPicker(BuildContext context, WidgetRef ref) {
   final disabledControls = Set<TimeIncrement>.from(homePrefs.disabledTimeControls);
   var customEnabled = homePrefs.customButtonEnabled;
 
-  final grouped = groupBy(TimeIncrement.matrixPresets, (tc) => tc.speed);
+  final supported = TimeIncrement.matrixPresets.where(GameSeek.supportsOnlineTime).toList();
+  final grouped = groupBy(supported, (tc) => tc.speed);
 
   return showAdaptiveDialog<void>(
     context: context,
@@ -214,8 +224,7 @@ Future<void> showTimeControlPicker(BuildContext context, WidgetRef ref) {
       return StatefulBuilder(
         builder: (context, setState) {
           final enabledCount =
-              TimeIncrement.matrixPresets.length -
-              disabledControls.length +
+              supported.where((tc) => !disabledControls.contains(tc)).length +
               (customEnabled ? 1 : 0);
 
           return PlatformAlertDialog(

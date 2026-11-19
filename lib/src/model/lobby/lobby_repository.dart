@@ -33,6 +33,9 @@ class CorrespondenceSeeks() extends AsyncNotifier<IList<CorrespondenceSeek>> {
 
 class LobbyRepository(final LichessClient client) {
   Future<void> createSeek(GameSeek seek, {required String sri}) async {
+    if (!seek.isBoardApiCompatible) {
+      throw ArgumentError('Lichess Board API: wybierz tempo rapid lub dłuższe (np. 10+0).');
+    }
     final uri = Uri(path: '/api/board/seek', queryParameters: {'sri': sri});
     await client.postRead(uri, body: seek.requestBody);
   }

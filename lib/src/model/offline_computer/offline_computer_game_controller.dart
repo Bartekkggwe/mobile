@@ -719,7 +719,54 @@ class OfflineComputerGameController() extends Notifier<OfflineComputerGameState>
     );
   }
 
+  /// Reopen a mated local game at the previous position where the human can play.
+  /// A mate by the engine requires undoing both its move and the human's preceding move.
+  void resumeAfterMate() {
+    if (!state.canResumeAfterMate) return;
+    _stopThinking();
+    _analyser.clear();
+    final steps = state.game.steps;
+    var cursor = steps.length - 2;
+    while (cursor >= 0 && steps[cursor].position.turn != state.game.playerSide) {
+      cursor--;
+    }
+    if (cursor < 0 || steps[cursor].position.isGameOver) return;
+    final finalSteps = steps.removeRange(cursor + 1, steps.length);
+    state = state.copyWith(
+      game: state.game.copyWith(
+        steps: finalSteps,
+        status: GameStatus.started,
+        winner: null,
+        isThreefoldRepetition: false,
+      ),
+      stepCursor: finalSteps.length - 1,
+      isEngineThinking: false,
+      isEvaluatingMove: false,
+      hintMove: null,
+      showingSuggestedMove: null,
+    );
+    final clock = ref.read(offlineComputerClockProvider);
+    Duration? white;
+    Duration? black;
+    for (final step in finalSteps.skip(1)) {
+      if (step.position.turn == Side.black) {
+        white = step.clock ?? white;
+      } else {
+        black = step.clock ?? black;
+      }
+    }
+    _clock.setupClock(clock.timeIncrement, whiteTimeLeft: white, blackTimeLeft: black);
+    if (!clock.timeIncrement.isInfinite && finalSteps.length > 1) {
+      _clock.resume(state.turn);
+    }
+    if (state.game.casual || state.game.practiceMode) _analyseCurrentPosition();
+  }
+
   void takeback() {
+    if (state.canResumeAfterMate) {
+      resumeAfterMate();
+      return;
+    }
     if (!state.canTakeback) return;
     if (!state.game.casual && !state.game.practiceMode) return;
 
@@ -971,6 +1018,14 @@ sealed class const OfflineComputerGameState._() with _$OfflineComputerGameState 
 
   bool get canGoForward => stepCursor < game.steps.length - 1;
   bool get canGoBack => stepCursor > 0;
+
+  /// A completed local mate can be reopened independently of casual mode.
+  bool get canResumeAfterMate =>
+      game.status == GameStatus.mate &&
+      game.steps.length > 1 &&
+      game.steps
+          .take(game.steps.length - 1)
+          .any((step) => step.position.turn == game.playerSide && !step.position.isGameOver);
 
   /// Player can take back if it's their turn and there are moves to take back.
   bool get canTakeback =>

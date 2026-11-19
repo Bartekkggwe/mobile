@@ -252,6 +252,7 @@ class const OverTheBoardGameResultDialog({
   super.key,
   required final OverTheBoardGame game,
   required final void Function() onRematch,
+  final void Function()? onResumeAfterMate,
 
   /// Callback to open the analysis of the game, once the dialog is closed.
   ///
@@ -266,6 +267,8 @@ class const OverTheBoardGameResultDialog({
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GameResult(game: game),
+        if (onResumeAfterMate != null)
+          FilledButton(onPressed: onResumeAfterMate, child: const Text('Cofnij i graj dalej')),
         FilledButton(
           onPressed: onRematch,
           child: Text(context.l10n.rematch, textAlign: TextAlign.center),

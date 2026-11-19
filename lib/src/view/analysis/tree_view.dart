@@ -43,21 +43,24 @@ class AnalysisTreeView extends ConsumerWidget {
                 currentPath: analysisState.currentPath,
                 onJump: (path) => ref.read(ctrlProvider.notifier).userJump(path),
               ),
-            DebouncedPgnTreeView(
-              root: analysisState.root,
-              currentPath: analysisState.currentPath,
-              livePath: analysisState.pathToLiveMove,
-              pgnRootComments: analysisState.pgnRootComments,
-              notifier: ref.read(ctrlProvider.notifier),
-              showTopDivider: false,
-              shouldShowComputerAnalysis: enableServerAnalysis,
-              shouldShowComments: enableServerAnalysis && prefs.showPgnComments,
-              shouldShowAnnotations: enableServerAnalysis && prefs.showAnnotations,
-              localReviewMarks: showLocalReview && analysisState.isComputerAnalysisAllowed
-                  ? localMarks
-                  : const {},
-              premovePaths: analysisState.forecast?.lines,
-              displayMode: prefs.inlineNotation ? .inlineNotation : .twoColumn,
+            _ReviewPgnSection(
+              collapsed: showLocalReview,
+              child: DebouncedPgnTreeView(
+                root: analysisState.root,
+                currentPath: analysisState.currentPath,
+                livePath: analysisState.pathToLiveMove,
+                pgnRootComments: analysisState.pgnRootComments,
+                notifier: ref.read(ctrlProvider.notifier),
+                showTopDivider: false,
+                shouldShowComputerAnalysis: enableServerAnalysis,
+                shouldShowComments: enableServerAnalysis && prefs.showPgnComments,
+                shouldShowAnnotations: enableServerAnalysis && prefs.showAnnotations,
+                localReviewMarks: showLocalReview && analysisState.isComputerAnalysisAllowed
+                    ? localMarks
+                    : const {},
+                premovePaths: analysisState.forecast?.lines,
+                displayMode: prefs.inlineNotation ? .inlineNotation : .twoColumn,
+              ),
             ),
             if (analysisState.archivedGame != null)
               Padding(
@@ -69,4 +72,14 @@ class AnalysisTreeView extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _ReviewPgnSection extends StatelessWidget {
+  const _ReviewPgnSection({required this.collapsed, required this.child});
+  final bool collapsed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      collapsed ? ExpansionTile(title: const Text('Pełny zapis partii'), children: [child]) : child;
 }

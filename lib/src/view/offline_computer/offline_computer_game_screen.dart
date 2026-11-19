@@ -180,6 +180,12 @@ class _BodyState() extends ConsumerState<_Body> {
               context: context,
               builder: (context) => OfflineComputerGameResultDialog(
                 game: newGameState.game,
+                onResumeAfterMate: newGameState.canResumeAfterMate
+                    ? () {
+                        Navigator.pop(context);
+                        ref.read(offlineComputerGameControllerProvider.notifier).resumeAfterMate();
+                      }
+                    : null,
                 onNewGame: () {
                   Navigator.pop(context);
                   _showNewGameDialog(initialVariant: gameState.game.meta.variant);
@@ -357,7 +363,9 @@ class const _BottomBar({required final VoidCallback onNewGame}) extends Consumer
         ),
         BottomBarButton(
           label: context.l10n.takeback,
-          onTap: gameState.canTakeback && (gameState.game.casual || gameState.game.practiceMode)
+          onTap:
+              (gameState.canResumeAfterMate ||
+                  (gameState.canTakeback && (gameState.game.casual || gameState.game.practiceMode)))
               ? () => ref.read(offlineComputerGameControllerProvider.notifier).takeback()
               : null,
           icon: CupertinoIcons.arrow_uturn_left,
@@ -1182,6 +1190,7 @@ class const _OfflineComputerGameSettingsSheet() extends ConsumerWidget {
 class const OfflineComputerGameResultDialog({
   required final OfflineComputerGame game,
   required final VoidCallback onNewGame,
+  final VoidCallback? onResumeAfterMate,
 
   /// Callback to open the analysis of the game, once the dialog is closed.
   ///
@@ -1219,6 +1228,8 @@ class const OfflineComputerGameResultDialog({
       content: Text(subtitle),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.close)),
+        if (onResumeAfterMate != null)
+          TextButton(onPressed: onResumeAfterMate, child: const Text('Cofnij i graj dalej')),
         TextButton(
           onPressed: () {
             Navigator.pop(context);
