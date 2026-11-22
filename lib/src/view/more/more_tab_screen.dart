@@ -1,4 +1,3 @@
-
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +19,7 @@ import 'package:lichess_mobile/src/view/board_editor/board_editor_screen.dart';
 import 'package:lichess_mobile/src/view/clock/clock_tool_screen.dart';
 import 'package:lichess_mobile/src/view/explorer/opening_explorer_screen.dart';
 import 'package:lichess_mobile/src/view/message/contacts_screen.dart';
+import 'package:lichess_mobile/src/view/ai_arena/ai_arena_screen.dart';
 import 'package:lichess_mobile/src/view/more/import_pgn_screen.dart';
 import 'package:lichess_mobile/src/view/more/opening_library_screen.dart';
 import 'package:lichess_mobile/src/view/relation/friend_screen.dart';
@@ -78,6 +78,14 @@ class const _Body() extends ConsumerWidget {
             hasLeading: true,
             children: [
               ListTile(
+                leading: const Icon(Icons.smart_toy_outlined),
+                trailing: const Icon(Icons.chevron_right),
+                title: const Text('AI Arena'),
+                subtitle: const Text('Ty vs ChatGPT · ChatGPT vs Stockfish'),
+                onTap: () => Navigator.of(context)
+                    .pushHidingTabBar(MaterialPageRoute<void>(builder: (_) => const ArenaPage())),
+              ),
+              ListTile(
                 leading: const Icon(Icons.upload_file_outlined),
                 trailing: Theme.of(context).platform == TargetPlatform.iOS
                     ? const CupertinoListTileChevron()
@@ -102,9 +110,8 @@ class const _Body() extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right),
                 title: const Text('Encyklopedia debiutów'),
                 subtitle: const Text('Debiuty i ich warianty • offline'),
-                onTap: () => Navigator.of(context).pushHidingTabBar(
-                  OpeningLibraryScreen.buildRoute(),
-                ),
+                onTap: () =>
+                    Navigator.of(context).pushHidingTabBar(OpeningLibraryScreen.buildRoute()),
               ),
               ListTile(
                 leading: const Icon(Icons.explore_outlined),
