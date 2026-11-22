@@ -1,0 +1,187 @@
+name: AI Arena - naprawiony instalator do Lichess
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ai-arena-fix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: install-ai-arena-fix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integrate_and_build:
+    name: Dodaj tryb AI Arena, zbuduj Lichess APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Pobierz nasz Lichess
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Flutter zgodny z projektem
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Dodaj ekran AI Arena do istniejacej aplikacji Lichess
+        shell: bash
+        run: |
+          mkdir -p lib/src/view/ai_arena
+          cat > /tmp/ai_arena_source.b64 <<'AI_ARENA_SOURCE'
+          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
+          AI_ARENA_SOURCE
+          python3 - <<'PY_SOURCE'
+          import base64, gzip
+          from pathlib import Path
+          raw = base64.b64decode(Path('/tmp/ai_arena_source.b64').read_text())
+          Path('lib/src/view/ai_arena/ai_arena_screen.dart').write_bytes(gzip.decompress(raw))
+          path = Path('lib/src/view/more/more_tab_screen.dart')
+          content = path.read_text()
+          import_line = "import 'package:lichess_mobile/src/view/ai_arena/ai_arena_screen.dart';\n"
+          if import_line not in content:
+              anchor = "import 'package:lichess_mobile/src/view/more/import_pgn_screen.dart';"
+              assert anchor in content, 'Zmienila sie struktura plikow Lichess (import).'
+              content = content.replace(anchor, import_line + anchor, 1)
+          list_tile = "              ListTile(\n                leading: const Icon(Icons.smart_toy_outlined),\n                trailing: const Icon(Icons.chevron_right),\n                title: const Text('AI Arena'),\n                subtitle: const Text('Ty vs ChatGPT · ChatGPT vs Stockfish'),\n                onTap: () => Navigator.of(context).pushHidingTabBar(\n                  MaterialPageRoute<void>(builder: (_) => const ArenaPage()),\n                ),\n              ),\n"
+          if "title: const Text('AI Arena')," not in content:
+              anchor = '              ListTile(\n                leading: const Icon(Icons.upload_file_outlined),'
+              assert anchor in content, 'Zmienila sie struktura ekranu Wiecej (lista narzedzi).'
+              content = content.replace(anchor, list_tile + anchor, 1)
+          path.write_text(content)
+          PY_SOURCE
+
+      - name: Przygotuj zaleznosci Flutter
+        run: flutter pub get
+
+      - name: Formatuj nowe pliki
+        run: dart format lib/src/view/ai_arena/ai_arena_screen.dart lib/src/view/more/more_tab_screen.dart
+
+      - name: Generuj wymagane pliki aplikacji
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Zweryfikuj kod AI Arena
+        run: dart analyze lib/src/view/ai_arena/ai_arena_screen.dart
+
+      - name: Zbuduj jeden APK Lichess z AI Arena
+        run: flutter build apk --debug --dart-define=LICHESS_HOST=lichess.org --dart-define=LICHESS_WS_HOST=socket.lichess.org
+
+      - name: Zachowaj dzialajacy kod AI Arena w repozytorium
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/src/view/ai_arena/ai_arena_screen.dart lib/src/view/more/more_tab_screen.dart
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate AI Arena with Stockfish callback support"
+            git push origin HEAD:main
+          fi
+
+      - name: Udostepnij APK bez ZIP na GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk Lichess-AI-Arena.apk
+          if gh release view lichess-ai-arena-v1 >/dev/null 2>&1; then
+            gh release upload lichess-ai-arena-v1 Lichess-AI-Arena.apk --clobber
+          else
+            gh release create lichess-ai-arena-v1 Lichess-AI-Arena.apk --target main --title 'Lichess z AI Arena (Android)' --notes 'Lichess + tryb AI Arena w zakladce Wiecej -> Narzedzia. Tryby: Ty vs ChatGPT, Ty vs Stockfish, ChatGPT vs Stockfish. APK testowe (debug). Tryb GPT wymaga osobnego klucza OpenAI API.'
+          fi
+
+      - name: Kopia zapasowa APK w Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lichess-AI-Arena-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
